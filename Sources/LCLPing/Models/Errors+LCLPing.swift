@@ -9,4 +9,6 @@ import Foundation
 
 public enum PingError: Error {
     
+    case invalidConfiguration(String)
+    case hostConnectionError(Error)
 }

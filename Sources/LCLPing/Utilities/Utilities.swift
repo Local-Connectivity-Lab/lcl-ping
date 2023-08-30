@@ -7,7 +7,7 @@
 
 import Foundation
 
-internal func calcChecksum(header: inout ICMPRequestHeader) -> UInt16 {
+internal func calcChecksum(header: inout ICMPHeader) -> UInt16 {
     let typecode = Data([header.type, header.code]).withUnsafeBytes { $0.load(as: UInt16.self) }
     var sum = UInt64(typecode) + UInt64(header.idenifier) + UInt64(header.sequenceNum)
     let payload = header.payload.toData()
@@ -21,5 +21,9 @@ internal func calcChecksum(header: inout ICMPRequestHeader) -> UInt16 {
     }
     
     return ~UInt16(sum)
+}
+
+internal func sizeof<T>(_ type: T.Type) -> Int {
+    return MemoryLayout<T>.size
 }
 

@@ -22,7 +22,7 @@ internal struct IPv4Header {
 }
 
 /// The ICMP request message header
-internal struct ICMPRequestHeader {
+internal struct ICMPHeader {
     
     // ICMP message type (ECHO_REQUEST)
     let type: UInt8
@@ -49,6 +49,12 @@ internal struct ICMPRequestHeader {
     /// Calculate and then set the checksum of the request header
     mutating func setChecksum() {
         self.checkSum = calcChecksum(header: &self)
+    }
+}
+
+extension ICMPHeader {
+    mutating func toData() -> Data {
+        return Data(bytes: &self, count: sizeof(ICMPHeader.self))
     }
 }
 

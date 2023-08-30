@@ -8,9 +8,8 @@
 import Foundation
 
 internal enum PingResponse {
-    case ok
-    case duplicated
-    case delayed
-    case timeout
+    case ok(Double, TimeInterval)
+    case duplicated(UInt16)
+    case timeout(UInt16)
     case error
 }

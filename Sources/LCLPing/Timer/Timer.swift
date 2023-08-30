@@ -66,6 +66,6 @@ internal struct TimerScheduler {
         self.tracker.forEach { (_, timer) in
             timer.cancel()
         }
-        self.tracker.removeAll(keepingCapacity: true)
+        self.tracker.removeAll()
     }
 }

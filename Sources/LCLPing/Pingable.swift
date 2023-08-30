@@ -8,11 +8,11 @@
 import Foundation
 
 protocol Pingable {
-    func start()
+    mutating func start(with configuration: LCLPing.Configuration) async throws
     
     // TODO: need to handle fallback of start(callback)
     
     func stop()
     
-    var summary: PingSummary { get }
+    var summary: PingSummary? { get }
 }
