@@ -12,7 +12,9 @@ protocol Pingable {
     
     // TODO: need to handle fallback of start(callback)
     
-    func stop()
+    mutating func stop()
     
-    var summary: PingSummary? { get }
+    var summary: PingSummary? { set get }
+    
+    var status: PingState { get }
 }

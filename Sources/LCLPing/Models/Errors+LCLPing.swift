@@ -9,6 +9,11 @@ import Foundation
 
 public enum PingError: Error {
     
+    case operationNotSupported
+    
     case invalidConfiguration(String)
     case hostConnectionError(Error)
+    case sendPingFailed(Error)
+    
+    case failedToInitialzeChannel
 }

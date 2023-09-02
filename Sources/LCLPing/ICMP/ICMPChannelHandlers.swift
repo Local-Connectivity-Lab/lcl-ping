@@ -77,7 +77,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         let currentTimestamp = Date.currentTimestamp
         let latency = (currentTimestamp - icmpRequest.payload.timestamp) * 1000
 
-        let pingResponse: PingResponse = .ok(latency, currentTimestamp)
+        let pingResponse: PingResponse = .ok(sequenceNum, latency, currentTimestamp)
         context.fireChannelRead(self.wrapInboundOut(pingResponse))
         
         // TODO: handle when ping completes

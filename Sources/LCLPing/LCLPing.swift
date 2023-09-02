@@ -1,6 +1,16 @@
 public struct LCLPing {
-    public private(set) var text = "Hello, World!"
-
-    public init() {
+    
+    public static func start(type: LCLPing.PingType, configuration: LCLPing.Configuration) async throws {
+        // TODO: validate configuration
+        var ping: Pingable?
+        switch type {
+        case .icmp:
+            ping = ICMPPing()
+        case .http:
+            throw PingError.operationNotSupported
+        }
+        
+        try await ping?.start(with: configuration)
     }
+
 }
