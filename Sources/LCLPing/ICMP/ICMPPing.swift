@@ -38,7 +38,7 @@ internal struct ICMPPing: Pingable {
     }
     private var asyncChannel: NIOAsyncChannel<PingResponse, ICMPOutboundIn>?
     private var task: Task<(), Error>?
-    private var nextSequenceNumber: UInt16 = 0
+//    private var nextSequenceNumber: UInt16 = 0
     
     private var timeout: Set<UInt16> = Set()
     private var duplicates: Set<UInt16> = Set()
@@ -95,12 +95,14 @@ internal struct ICMPPing: Pingable {
             throw PingError.failedToInitialzeChannel
         }
         
-        task = Task(priority: .background) { [asyncChannel, nextSequenceNumber] in
+        task = Task(priority: .background) { [asyncChannel] in
             var cnt: UInt16 = 0
+            var nextSequenceNumber: UInt16 = 0
             do {
                 while !Task.isCancelled && cnt != configuration.count {
                     try await asyncChannel.outboundWriter.write((ICMPPingIdentifier, nextSequenceNumber))
                     cnt += 1
+                    nextSequenceNumber += 1
                     try await Task.sleep(nanoseconds: configuration.interval.nanosecond)
                 }
             } catch {
@@ -152,6 +154,7 @@ internal struct ICMPPing: Pingable {
         if pingStatus == .running {
             pingStatus = .finished
         }
+        print("summary is \(String(describing: pingSummary))")
         
     }
     

@@ -40,6 +40,8 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         
         let buffer = context.channel.allocator.buffer(bytes: icmpRequest.toData())
         context.writeAndFlush(self.wrapOutboundOut(buffer), promise: promise)
+        self.seqToRequest[sequenceNum] = icmpRequest
+//        print("request at seq# \(sequenceNum) is \(icmpRequest)")
         
         // TODO: set up timer
         timerScheduler.schedule(delay: self.configuration.timeout, key: sequenceNum) { [weak self] in
@@ -53,24 +55,28 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let icmpResponse = self.unwrapInboundIn(data)
+//        print("received response: \(icmpResponse)")
         
         // TODO: need to handle more response type
         precondition(icmpResponse.type == ICMPType.EchoReply.rawValue, "Not ICMP Reply. Expected \(ICMPType.EchoReply.rawValue). But received \(icmpResponse.type)")
         precondition(icmpResponse.code == 0)
         
-        let sequenceNum = int16BigToLittle(icmpResponse.sequenceNum)
-        let identifier = int16BigToLittle(icmpResponse.idenifier)
+        let sequenceNum = icmpResponse.sequenceNum
+        let identifier = icmpResponse.idenifier
         
         if self.seqToResponse.keys.contains(sequenceNum) {
             let pingResponse: PingResponse = self.seqToResponse[sequenceNum] == nil ? .timeout(sequenceNum) : .duplicated(sequenceNum)
             context.fireChannelRead(self.wrapInboundOut(pingResponse))
+            return
         }
         
         guard let icmpRequest = seqToRequest[sequenceNum] else {
             fatalError("Unable to find matching request with sequence number \(sequenceNum)")
         }
         
-        precondition(icmpResponse.checkSum == icmpRequest.checkSum)
+//        print("get icmp request at seq # \(sequenceNum): \(icmpRequest)")
+        
+        precondition(icmpResponse.checkSum == icmpResponse.calcChecksum())
         precondition(identifier == icmpRequest.idenifier)
         
         self.seqToResponse[sequenceNum] = icmpResponse
@@ -99,11 +105,12 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
 }
 
 internal final class IPDecoder: ChannelInboundHandler {
-    typealias InboundIn = ByteBuffer
+    typealias InboundIn = AddressedEnvelope<ByteBuffer>
     typealias InboundOut = ByteBuffer
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        var buffer = self.unwrapInboundIn(data)
+        let addressedBuffer = self.unwrapInboundIn(data)
+        var buffer = addressedBuffer.data
         let ipv4Header: IPv4Header = decodeByteBuffer(data: &buffer)
         let version = ipv4Header.versionAndHeaderLength & 0xF0
         precondition(version == 0x40, "Not valid IP Header. Need 0x40. But received \(version)")

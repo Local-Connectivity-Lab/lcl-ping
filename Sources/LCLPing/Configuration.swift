@@ -13,6 +13,14 @@ extension LCLPing {
     /// The configuration for running each LCLPing test
     public struct Configuration {
         
+        public init(count: UInt16 = 10, interval: TimeInterval = 1, ttl: UInt16 = 64, timeout: TimeInterval = 1, host: IP) {
+            self.count = count
+            self.interval = interval
+            self.timeToLive = ttl
+            self.timeout = timeout
+            self.host = host
+        }
+        
         // TODO: need to add default value
         
         /// Total number of packets sent

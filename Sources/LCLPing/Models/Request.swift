@@ -41,14 +41,30 @@ internal struct ICMPHeader {
         self.type = ICMPType.EchoRequest.rawValue
         self.code = 0
         self.checkSum = 0
-        self.idenifier = int16LittleToBig(idenifier)
-        self.sequenceNum = int16LittleToBig(sequenceNum)
+        self.idenifier = idenifier
+        self.sequenceNum = sequenceNum
         self.payload = ICMPRequestPayload(timestamp: Date.currentTimestamp, identifier: self.idenifier)
     }
     
     /// Calculate and then set the checksum of the request header
     mutating func setChecksum() {
-        self.checkSum = calcChecksum(header: &self)
+        self.checkSum = calcChecksum()
+    }
+    
+    func calcChecksum() -> UInt16 {
+        let typecode = Data([self.type, self.code]).withUnsafeBytes { $0.load(as: UInt16.self) }
+        var sum = UInt64(typecode) + UInt64(self.idenifier) + UInt64(self.sequenceNum)
+        let payload = self.payload.data
+
+        for idx in stride(from: 0, to: payload.count, by: 2) {
+            sum += Data([payload[idx], payload[idx + 1]]).withUnsafeBytes { UInt64($0.load(as: UInt16.self)) }
+        }
+
+        while sum >> 16 != 0 {
+            sum = (sum & 0xFFFF) + (sum >> 16)
+        }
+
+        return ~UInt16(sum)
     }
 }
 
@@ -67,9 +83,14 @@ struct ICMPRequestPayload: Hashable {
 extension ICMPRequestPayload {
     
     /// Convert ICMP request payload in the header to byte array
-    mutating func toData() -> Data {
-        return Data(bytes: &self, count: MemoryLayout<ICMPRequestPayload>.size)
+    var data: Data {
+        var payload = self
+        return Data(bytes: &payload, count: MemoryLayout<ICMPRequestPayload>.size)
     }
+//    
+//    mutating func toData() -> Data {
+//        return Data(bytes: &self, count: MemoryLayout<ICMPRequestPayload>.size)
+//    }
 }
 
 /// ICMP message type
