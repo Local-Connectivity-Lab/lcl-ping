@@ -51,6 +51,8 @@ internal struct ICMPHeader {
         self.checkSum = calcChecksum()
     }
     
+    
+    /// Calculate the checksum of the given ICMP header
     func calcChecksum() -> UInt16 {
         let typecode = Data([self.type, self.code]).withUnsafeBytes { $0.load(as: UInt16.self) }
         var sum = UInt64(typecode) + UInt64(self.idenifier) + UInt64(self.sequenceNum)
@@ -87,10 +89,6 @@ extension ICMPRequestPayload {
         var payload = self
         return Data(bytes: &payload, count: MemoryLayout<ICMPRequestPayload>.size)
     }
-//    
-//    mutating func toData() -> Data {
-//        return Data(bytes: &self, count: MemoryLayout<ICMPRequestPayload>.size)
-//    }
 }
 
 /// ICMP message type

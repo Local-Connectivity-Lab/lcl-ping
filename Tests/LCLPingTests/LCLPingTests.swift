@@ -6,6 +6,6 @@ final class LCLPingTests: XCTestCase {
         // This is an example of a functional test case.
         // Use XCTAssert and related functions to verify your tests produce the correct
         // results.
-        XCTAssertEqual(LCLPing().text, "Hello, World!")
+//        XCTAssertEqual(LCLPing().text, "Hello, World!")
     }
 }

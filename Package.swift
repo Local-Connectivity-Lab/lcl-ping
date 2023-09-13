@@ -17,8 +17,9 @@ let package = Package(
     dependencies: [
         // Dependencies declare other packages that this package depends on.
         .package(url: "https://github.com/apple/swift-nio-transport-services.git", from: "1.13.0"),
-//        .package(url: "https://github.com/apple/swift-collections.git", from: "1.0.2"),
-        .package(url: "https://github.com/apple/swift-nio.git", from: "2.58.0"),
+//        .package(url: "https://github.com/apple/swift-nio.git", from: "2.58.0"),
+        // TODO: the following package will be resolved when the PR is merged
+        .package(url: "https://github.com/apple/swift-nio.git", revision: "3e7cdb42691631310adddeee58a983c0d4abe4ff"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.3"),
     ],
     targets: [
@@ -30,7 +31,6 @@ let package = Package(
                 .product(name: "NIO", package: "swift-nio"),
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
-//                .product(name: "Collections", package: "swift-collections"),
                 .product(name: "NIOTransportServices", package: "swift-nio-transport-services"),
                 .product(name: "Logging", package: "swift-log")
             ]),

@@ -9,7 +9,7 @@ import Foundation
 import NIO
 import NIOCore
 
-
+// TODO: support version without swift concurrency
 internal final class ICMPDuplexer: ChannelDuplexHandler {
     typealias InboundIn = ICMPHeader
     typealias InboundOut = PingResponse
@@ -34,6 +34,11 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
     }
     
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
+//        context.eventLoop.execute { [weak self] in
+//            guard let self = self else {
+//                print("Unable to acquire self in event loop in duplexer write")
+//                return
+//            }
         let (identifier, sequenceNum) = self.unwrapOutboundIn(data)
         var icmpRequest = ICMPHeader(idenifier: identifier, sequenceNum: sequenceNum)
         icmpRequest.setChecksum()
@@ -41,21 +46,26 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         let buffer = context.channel.allocator.buffer(bytes: icmpRequest.toData())
         context.writeAndFlush(self.wrapOutboundOut(buffer), promise: promise)
         self.seqToRequest[sequenceNum] = icmpRequest
-//        print("request at seq# \(sequenceNum) is \(icmpRequest)")
         
-        // TODO: set up timer
-        timerScheduler.schedule(delay: self.configuration.timeout, key: sequenceNum) { [weak self] in
+        self.timerScheduler.schedule(delay: self.configuration.timeout, key: sequenceNum) { [weak self] in
             if let self = self, !self.seqToResponse.keys.contains(sequenceNum) {
                 self.seqToResponse[sequenceNum] = nil
                 let pingResponse: PingResponse = .timeout(sequenceNum)
                 context.fireChannelRead(self.wrapInboundOut(pingResponse))
             }
         }
+//        }
     }
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+//        context.eventLoop.execute { [weak self] in
+            
+//            guard let self = self else {
+//                print("unable to fetch self in duplexer read")
+//                return
+//            }
+            
         let icmpResponse = self.unwrapInboundIn(data)
-//        print("received response: \(icmpResponse)")
         
         // TODO: need to handle more response type
         precondition(icmpResponse.type == ICMPType.EchoReply.rawValue, "Not ICMP Reply. Expected \(ICMPType.EchoReply.rawValue). But received \(icmpResponse.type)")
@@ -74,8 +84,6 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
             fatalError("Unable to find matching request with sequence number \(sequenceNum)")
         }
         
-//        print("get icmp request at seq # \(sequenceNum): \(icmpRequest)")
-        
         precondition(icmpResponse.checkSum == icmpResponse.calcChecksum())
         precondition(identifier == icmpRequest.idenifier)
         
@@ -85,11 +93,11 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
 
         let pingResponse: PingResponse = .ok(sequenceNum, latency, currentTimestamp)
         context.fireChannelRead(self.wrapInboundOut(pingResponse))
-        
-        // TODO: handle when ping completes
+
         if self.seqToRequest.count == self.configuration.count && self.seqToResponse.count == self.configuration.count {
             context.close(mode: .all, promise: nil)
         }
+//        }
     }
     
     func channelActive(context: ChannelHandlerContext) {
@@ -102,6 +110,11 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         self.timerScheduler.reset()
     }
     
+    func errorCaught(context: ChannelHandlerContext, error: Error) {
+        let pingResponse: PingResponse = .error
+        context.fireChannelRead(self.wrapInboundOut(pingResponse))
+    }
+    
 }
 
 internal final class IPDecoder: ChannelInboundHandler {
@@ -109,18 +122,30 @@ internal final class IPDecoder: ChannelInboundHandler {
     typealias InboundOut = ByteBuffer
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        let addressedBuffer = self.unwrapInboundIn(data)
-        var buffer = addressedBuffer.data
-        let ipv4Header: IPv4Header = decodeByteBuffer(data: &buffer)
-        let version = ipv4Header.versionAndHeaderLength & 0xF0
-        precondition(version == 0x40, "Not valid IP Header. Need 0x40. But received \(version)")
         
-        let proto = ipv4Header.protocol
-        precondition(proto == IPPROTO_ICMP, "Not ICMP Message. Need \(IPPROTO_ICMP). But received \(proto)")
-        
-        let headerLength = (Int(ipv4Header.versionAndHeaderLength) & 0x0F) * sizeof(UInt32.self)
-        buffer.moveReaderIndex(to: headerLength)
-        context.fireChannelRead(self.wrapInboundOut(buffer.slice()))
+//        context.eventLoop.execute { [weak self] in
+//            guard let self = self else {
+//                print("unable to fetch self in ip decoder")
+//                return
+//            }
+            
+            let addressedBuffer = self.unwrapInboundIn(data)
+            var buffer = addressedBuffer.data
+            let ipv4Header: IPv4Header = decodeByteBuffer(data: &buffer)
+            let version = ipv4Header.versionAndHeaderLength & 0xF0
+            precondition(version == 0x40, "Not valid IP Header. Need 0x40. But received \(version)")
+            
+            let proto = ipv4Header.protocol
+            precondition(proto == IPPROTO_ICMP, "Not ICMP Message. Need \(IPPROTO_ICMP). But received \(proto)")
+            
+            let headerLength = (Int(ipv4Header.versionAndHeaderLength) & 0x0F) * sizeof(UInt32.self)
+            buffer.moveReaderIndex(to: headerLength)
+            context.fireChannelRead(self.wrapInboundOut(buffer.slice()))
+//        }
+    }
+    
+    func errorCaught(context: ChannelHandlerContext, error: Error) {
+        context.fireErrorCaught(error)
     }
 }
 
@@ -129,8 +154,21 @@ internal final class ICMPDecoder: ChannelInboundHandler {
     typealias InboundOut = ICMPHeader
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        var buffer = self.unwrapInboundIn(data)
-        let icmpResponseHeader: ICMPHeader = decodeByteBuffer(data: &buffer)
-        context.fireChannelRead(self.wrapInboundOut(icmpResponseHeader))
+        
+//        context.eventLoop.execute { [weak self] in
+//            
+//            guard let self = self else {
+//                print("unable to fetch self in icmp decoder")
+//                return
+//            }
+            
+            var buffer = self.unwrapInboundIn(data)
+            let icmpResponseHeader: ICMPHeader = decodeByteBuffer(data: &buffer)
+            context.fireChannelRead(self.wrapInboundOut(icmpResponseHeader))
+//        }
+    }
+    
+    func errorCaught(context: ChannelHandlerContext, error: Error) {
+        context.fireErrorCaught(error)
     }
 }

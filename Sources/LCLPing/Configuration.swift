@@ -13,12 +13,13 @@ extension LCLPing {
     /// The configuration for running each LCLPing test
     public struct Configuration {
         
-        public init(count: UInt16 = 10, interval: TimeInterval = 1, ttl: UInt16 = 64, timeout: TimeInterval = 1, host: IP) {
+        public init(count: UInt16 = 10, interval: TimeInterval = 1, ttl: UInt16 = 64, timeout: TimeInterval = 1, host: IP, verboseOutput: Bool = false) {
             self.count = count
             self.interval = interval
             self.timeToLive = ttl
             self.timeout = timeout
             self.host = host
+            self.verboseOutput = verboseOutput
         }
         
         // TODO: need to add default value
@@ -37,6 +38,9 @@ extension LCLPing {
         
         /// The destination IP address the packet will be sent to
         let host: IP
+        
+        /// Option to output more information
+        let verboseOutput: Bool
     }
     
     public enum IP {
@@ -44,10 +48,10 @@ extension LCLPing {
         /// ICMP address
         case icmp(String)
         
-        /// IPv4  address and port
-        case ipv4(String, UInt16)
+        /// IPv4  address and port(optional)
+        case ipv4(String, UInt16?)
         
-        /// IPv6 address and port
-        case ipv6(String, UInt16)
+        /// IPv6 address and port(optional)
+        case ipv6(String, UInt16?)
     }
 }
