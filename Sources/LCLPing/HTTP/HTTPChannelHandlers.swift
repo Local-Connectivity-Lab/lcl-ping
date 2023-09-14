@@ -10,8 +10,24 @@ import NIO
 import NIOCore
 
 
-#if os(Linux)
-#else
+
+//internal final class HTTPDuplexer: ChannelDuplexHandler {
+//    typealias InboundIn = 
+//    typealias InboundOut = PingResponse
+//    typealias OutboundIn = <#type#>
+//    
+//    
+//}
+
+
+
+
+
+
+
+
+
+#if os(macOS) || os(iOS)
 internal final class HTTPHandler: NSObject {
     init(useServerTiming: Bool) {
         self.useServerTiming = useServerTiming

@@ -13,6 +13,19 @@ extension LCLPing {
     /// The configuration for running each LCLPing test
     public struct Configuration {
         
+        /// Internet Protocol (IP) that LCLPing supports
+        public enum IP {
+            
+            /// ICMP address
+            case icmp(String)
+            
+            /// IPv4  address and port(optional)
+            case ipv4(String, UInt16?)
+            
+            /// IPv6 address and port(optional)
+            case ipv6(String, UInt16?)
+        }
+        
         public init(count: UInt16 = 10, interval: TimeInterval = 1, ttl: UInt16 = 64, timeout: TimeInterval = 1, host: IP, verboseOutput: Bool = false) {
             self.count = count
             self.interval = interval
@@ -39,17 +52,5 @@ extension LCLPing {
         
         /// Option to output more information
         let verboseOutput: Bool
-    }
-    
-    public enum IP {
-        
-        /// ICMP address
-        case icmp(String)
-        
-        /// IPv4  address and port(optional)
-        case ipv4(String, UInt16?)
-        
-        /// IPv6 address and port(optional)
-        case ipv6(String, UInt16?)
     }
 }

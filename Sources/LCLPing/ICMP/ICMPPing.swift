@@ -41,9 +41,9 @@ internal struct ICMPPing: Pingable {
     private var asyncChannel: NIOAsyncChannel<PingResponse, ICMPOutboundIn>?
     private var task: Task<(), Error>?
     
-    private var timeout: Set<UInt16> = Set()
-    private var duplicates: Set<UInt16> = Set()
-    private var pingResults: [PingResult] = []
+//    private var timeout: Set<UInt16> = Set()
+//    private var duplicates: Set<UInt16> = Set()
+//    private var pingResults: [PingResult] = []
     private var pingStatus: PingState = .ready
     private var pingSummary: PingSummary?
     private let logger: Logger = Logger(label: "com.lcl.lclping")
@@ -115,45 +115,14 @@ internal struct ICMPPing: Pingable {
                 throw PingError.sendPingFailed(error)
             }
         }
-
-        var localMin: Double = .greatestFiniteMagnitude
-        var localMax: Double = .zero
-        var consecutiveDiffSum: Double = .zero
-        var errorCount: Int = 0
+        
+        var pingResponses: [PingResponse] = []
         for try await pingResponse in asyncChannel.inboundStream {
-            switch pingResponse {
-            case .ok(let sequenceNum, let latency, let timstamp):
-                localMin = min(localMin, latency)
-                localMax = max(localMax, latency)
-                if self.pingResults.count > 1 {
-                    consecutiveDiffSum += abs(latency - self.pingResults.last!.latency)
-                }
-                self.pingResults.append( PingResult(seqNum: sequenceNum, latency: latency, ipAddress: host, timestamp: timstamp) )
-            case .duplicated(let sequenceNum):
-                duplicates.insert(sequenceNum)
-            case .timeout(let sequenceNum):
-                timeout.insert(sequenceNum)
-            case .error:
-                errorCount += 1
-                print("Error occurred during processing ping response")
-            }
+            print("received ping response: \(pingResponse)")
+            pingResponses.append(pingResponse)
         }
-
-        let pingResultLen = self.pingResults.count
-        let avg = self.pingResults.avg
-        let stdDev = sqrt( self.pingResults.map { ($0.latency - avg) * ($0.latency - avg) }.reduce(0.0, +) / Double(pingResultLen - 1))
-
-        pingSummary = PingSummary(min: localMin,
-                                   max: localMax,
-                                   avg: avg,
-                                   median: self.pingResults.median,
-                                   stdDev: stdDev,
-                                   jitter: consecutiveDiffSum / Double(pingResultLen),
-                                   details: self.pingResults,
-                                   totalCount: pingResultLen + errorCount + timeout.count,
-                                   timeout: timeout,
-                                   duplicates: duplicates,
-                                   ipAddress: host)
+        
+        pingSummary = summarizePingResponse(pingResponses, host: host)
 
         if pingStatus == .running {
             pingStatus = .finished

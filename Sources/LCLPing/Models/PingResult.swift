@@ -10,6 +10,6 @@ import Foundation
 public struct PingResult {
     let seqNum: UInt16
     let latency: Double
-    let ipAddress: String
+//    let ipAddress: String
     let timestamp: TimeInterval
 }
