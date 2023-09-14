@@ -22,8 +22,6 @@ extension LCLPing {
             self.verboseOutput = verboseOutput
         }
         
-        // TODO: need to add default value
-        
         /// Total number of packets sent
         let count: UInt16
         

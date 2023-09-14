@@ -20,14 +20,22 @@ public struct LCLPing {
         switch type {
         case .icmp:
             ping = ICMPPing()
-            print("1")
         case .http:
             ping = HTTPPing()
-//            throw PingError.operationNotSupported("Ping through HTTP is currently not supported")
         }
         
-        print("2")
         try await ping?.start(with: configuration)
         print("DONE!")
     }
+    
+//    private func validateConfiguration(type: LCLPing.PingType, configuration: LCLPing.Configuration) -> Bool {
+//        switch configuration.host {
+//        case .icmp(_):
+//            return type == .icmp
+//        case .ipv4(_, _):
+//            <#code#>
+//        case .ipv6(_, _):
+//            <#code#>
+//        }
+//    }
 }

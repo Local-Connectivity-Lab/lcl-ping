@@ -76,16 +76,8 @@ internal struct ICMPPing: Pingable {
             pingStatus = .failed
             throw PingError.invalidConfiguration("Expect IP.ICMP host. But received \(configuration.host)")
         }
-        
-//        let fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP)
-//        if fd == -1 {
-//            fatalError("Unable to open datagram socket for ICMP")
-//        }
-        
         do {
-//            let channel = try await bootstrap.withBoundSocket(fd).get()
             let channel = try await bootstrap.connect(host: host, port: 0).get()
-//            try await channel.connect(to: .makeAddressResolvingHost(host, port: 0))
             asyncChannel = try await withCheckedThrowingContinuation { continuation in
                 channel.eventLoop.execute {
                     do {

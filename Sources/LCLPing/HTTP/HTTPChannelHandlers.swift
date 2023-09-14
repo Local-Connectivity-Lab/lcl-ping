@@ -13,9 +13,6 @@ import NIOCore
 #if os(Linux)
 #else
 internal final class HTTPHandler: NSObject {
-    
-    // TODO: add state management
-    
     init(useServerTiming: Bool) {
         self.useServerTiming = useServerTiming
         super.init()
@@ -27,7 +24,6 @@ internal final class HTTPHandler: NSObject {
     
     private var session: URLSession?
     private var taskToSeqNum: Dictionary<Int, UInt16> = [:]
-//    private var taskToHeader: Dictionary<Int, HTTPURLResponse> = [:]
     private var taskToLatency: Dictionary<Int, Double?> = [:]
     private static let estimatedServerTiming: Double = 15
     private var userConfiguration: LCLPing.Configuration?
@@ -36,11 +32,10 @@ internal final class HTTPHandler: NSObject {
     
     func execute(configuration: LCLPing.Configuration) async throws -> AsyncStream<PingResponse>  {
         self.userConfiguration = configuration
-        let config: URLSessionConfiguration = .ephemeral
-        config.timeoutIntervalForRequest = configuration.timeout
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        self.session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
-        print(6)
+        let urlsessionConfig: URLSessionConfiguration = .ephemeral
+        urlsessionConfig.timeoutIntervalForRequest = configuration.timeout
+        urlsessionConfig.requestCachePolicy = .reloadIgnoringLocalCacheData
+        self.session = URLSession(configuration: urlsessionConfig, delegate: self, delegateQueue: nil)
         
         let request: URLRequest
         switch configuration.host {
@@ -52,8 +47,8 @@ internal final class HTTPHandler: NSObject {
                 cancel()
                 throw PingError.invalidIPv4URL
             }
-            print(7)
             
+            // probe the server to see if it supports `Server-Timing`
             if useServerTiming {
                 switch await probe(url: url) {
                 case .failure(let error):
@@ -65,13 +60,13 @@ internal final class HTTPHandler: NSObject {
             }
             
             request = prepareRequest(url: url)
-            print("request is \(request)")
         case .ipv6(let url, let port):
             guard let url = prepareURL(url: url, port: port) else {
                 cancel()
                 throw PingError.invalidIPv6URL
             }
             
+            // probe the server to see if it supports `Server-Timing`
             if useServerTiming {
                 switch await probe(url: url) {
                 case .failure(let error):
@@ -97,12 +92,14 @@ internal final class HTTPHandler: NSObject {
             fatalError("Unable to create URLSession")
         }
         
+        let now = Date()
         for cnt in 0..<configuration.count {
-            let dataTask = session.dataTask(with: request)
-            let taskIdentifier = dataTask.taskIdentifier
-            taskToSeqNum[taskIdentifier] = cnt
-            dataTask.resume()
-            try await Task.sleep(nanoseconds: configuration.interval.nanosecond)
+            session.delegateQueue.schedule(after: .init(now + configuration.interval * Double(cnt)), tolerance: .microseconds(100), options: nil) {
+                let dataTask = session.dataTask(with: request)
+                let taskIdentifier = dataTask.taskIdentifier
+                self.taskToSeqNum[taskIdentifier] = cnt
+                dataTask.resume()
+            }
         }
 
         return stream
@@ -115,6 +112,12 @@ internal final class HTTPHandler: NSObject {
 }
 
 extension HTTPHandler {
+    
+    /// Probe the given URL to check if the remote server supports `Server-Timing` attribute
+    ///
+    /// - Parameters:
+    ///     - url: the URL of the server to probe
+    /// - Returns: success if the remote server supports Server-Timing attribute; failure otherwise
     private func probe(url: URL) async -> Result<Void, PingError> {
         if let session = session {
             do {
@@ -122,7 +125,7 @@ extension HTTPHandler {
                 let httpResponse = response as! HTTPURLResponse
                 switch httpResponse.statusCode {
                 case 200...299:
-                    if let serverTimingField = httpResponse.value(forHTTPHeaderField: "Server-Timing") {
+                    if let _ = httpResponse.value(forHTTPHeaderField: "Server-Timing") {
                         return .success(())
                     } else {
                         return .failure(.operationNotSupported("ServerTiming not support on server at host \(url.absoluteString)"))
@@ -139,6 +142,13 @@ extension HTTPHandler {
         }
     }
     
+    
+    /// Create an URL object from the given URL string and optional port number
+    ///
+    /// - Parameters:
+    ///     - url: the URL string that will be converted to an URL object
+    ///     - port: the port number that the client should connect to
+    /// - Returns: an URL object id `url` string and `port` are valid; `nil` otherwise
     private func prepareURL(url: String, port: UInt16?) -> URL? {
         var urlString = url
         if let port = port {
@@ -150,13 +160,14 @@ extension HTTPHandler {
         return requestURL
     }
     
+    /// Create URLRequest object given the `url`
+    ///
+    /// - Parameters:
+    ///     - url: the `URL` object that will be used to create the `URLRequest` object
+    /// - Returns: `URLRequest` object that can be used to send request using `URLSession`
     private func prepareRequest(url: URL) -> URLRequest {
-        print(7.1)
-        var host: String = url.host ?? ""
-        print("host is \(host)")
-        
+        let host: String = url.host ?? ""
         var request: URLRequest = URLRequest(url: url)
-        print(8.1)
         request.httpMethod = "GET"
         request.allowsCellularAccess = true
         request.setValue(host, forHTTPHeaderField: "Host")
@@ -164,7 +175,6 @@ extension HTTPHandler {
         request.setValue("empty", forHTTPHeaderField: "Sec-Fetch-Dest")
         request.setValue("cors", forHTTPHeaderField: "Sec-Fetch-Mode")
         request.setValue("same-origin", forHTTPHeaderField: "Sec-Fetch-Site")
-        print(9)
         return request
     }
 }
@@ -173,9 +183,6 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         let taskIdentifier = task.taskIdentifier
-        print("task \(taskIdentifier) completes")
-    
-        
         if let error = error {
             let urlError = error as! URLError
             switch urlError.code {
@@ -183,9 +190,8 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
                 print("task \(taskIdentifier) times out")
                 self.continuation?.yield(.timeout(taskToSeqNum[taskIdentifier]!))
             default:
-                print("task \(taskIdentifier) has error \(urlError.code)")
+                print("task \(taskIdentifier) has error: \(urlError.localizedDescription)")
                 self.continuation?.yield(.error)
-                break
             }
             
         } else {
@@ -199,7 +205,7 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
             switch (response as! HTTPURLResponse).statusCode {
             case 200...299:
                 guard taskToLatency.keys.contains(taskIdentifier) && taskToSeqNum.keys.contains(taskIdentifier) else {
-                    fatalError("Unknown URLSession Datatask")
+                    fatalError("Unknown URLSession Datatask \(taskIdentifier)")
                 }
                 
                 if let latency = taskToLatency[taskIdentifier]!, let seqNum = taskToSeqNum[taskIdentifier] {
@@ -209,6 +215,7 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
                 self.continuation?.yield(.error)
             }
             
+            // completes the async stream
             if let userConfiguration = self.userConfiguration, taskToSeqNum.count == userConfiguration.count {
                 continuation?.finish()
             }
@@ -216,30 +223,18 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
         
     }
     
-//    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
-//        let taskIdentifier = dataTask.taskIdentifier
-//        taskToHeader[taskIdentifier] = (response as! HTTPURLResponse)
-//        print("task \(taskIdentifier) receives http response")
-//        completionHandler(.allow)
-//    }
-    
     func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
         guard let metric = metrics.transactionMetrics.last else {
             return
         }
         
         let taskIdentifier = task.taskIdentifier
-        print("task \(taskIdentifier) finishes collecting metrics")
-        
         
         let requestStart = metric.requestStartDate?.timeIntervalSince1970 ?? 0
         let responseEnd = metric.responseEndDate?.timeIntervalSince1970 ?? 0
         
         if !useServerTiming {
-//            self.continuation?.yield(.ok(taskToSeqNum[taskIdentifier]!, (responseEnd - requestStart) * 1000.0, Date.currentTimestamp))
             self.taskToLatency[taskIdentifier] = (responseEnd - requestStart) * 1000.0
-            print("latency is: \((responseEnd - requestStart) * 1000.0) ms")
-            
             return
         }
         
@@ -272,13 +267,15 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
                         }
                     } catch {
                         // TODO: handle error
+                        fatalError("Invalid Regular Expression: \(error)")
                     }
                 }
             } else {
-                // TODO: use estimated timing
+                // use estimated timing
                 taskToLatency[taskIdentifier] = HTTPHandler.estimatedServerTiming
             }
         } else {
+            // error status code
             taskToLatency[taskIdentifier] = nil
         }
     }

@@ -44,21 +44,23 @@ internal struct HTTPPing: Pingable {
 //    }
     
     mutating func start(with configuration: LCLPing.Configuration) async throws {
-        print(3)
+        pingStatus = .running
         let httpExecutor = HTTPHandler(useServerTiming: false)
-        print(4)
         do {
             for try await res in try await httpExecutor.execute(configuration: configuration) {
                 print(res)
             }
-            print(5)
+            pingStatus = .finished
         } catch {
+            pingStatus = .failed
             print("Error \(error)")
         }
     }
     
     mutating func stop() {
-        
+        if pingStatus != .failed {
+            pingStatus = .stopped
+        }
     }
     
 

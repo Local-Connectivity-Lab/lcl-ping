@@ -10,7 +10,7 @@ import Foundation
 extension LCLPing {
     
     /// Supported ping methods
-    public enum PingType {
+    public enum PingType {        
         
         /// Use Internet Control Message Protocol (ICMP) to ping host
         case icmp
