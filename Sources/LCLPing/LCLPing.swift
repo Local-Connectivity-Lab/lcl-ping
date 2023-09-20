@@ -14,14 +14,15 @@ public struct LCLPing {
         ping?.summary
     }
     
-    public mutating func start(type: LCLPing.PingType, configuration: LCLPing.Configuration) async throws {
+    public mutating func start(configuration: LCLPing.Configuration) async throws {
         // TODO: validate configuration
         print("START")
+        let type = configuration.type
         switch type {
         case .icmp:
             ping = ICMPPing()
-        case .http:
-            ping = HTTPPing()
+        case .http(let options):
+            ping = HTTPPing(options: options)
         }
         
         try await ping?.start(with: configuration)

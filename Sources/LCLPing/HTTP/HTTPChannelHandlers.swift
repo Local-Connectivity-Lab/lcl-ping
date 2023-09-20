@@ -8,16 +8,53 @@
 import Foundation
 import NIO
 import NIOCore
+import NIOHTTP1
 
 
 
-//internal final class HTTPDuplexer: ChannelDuplexHandler {
-//    typealias InboundIn = 
-//    typealias InboundOut = PingResponse
-//    typealias OutboundIn = <#type#>
-//    
-//    
-//}
+
+internal final class HTTPDuplexer: ChannelDuplexHandler {
+    typealias InboundIn = HTTPClientResponsePart
+    typealias InboundOut = PingResponse
+    typealias OutboundIn = HTTPOutboundIn
+    typealias OutboundOut = HTTPClientRequestPart
+    
+    func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
+        
+        let (identifer, sequenceNumber) = self.unwrapOutboundIn(data)
+        print("identifier = \(identifer), seq number = \(sequenceNumber)")
+        
+        var header = HTTPHeaders()
+        
+        header.add(name: "Host", value: "google.com")
+        header.add(name: "Connection", value: "keep-alive")
+        header.add(name: "Sec-Fetch-Dest", value: "empty")
+        header.add(name: "Sec-Fetch-Mode", value: "cors")
+        header.add(name: "Sec-Fetch-Site", value: "same-origin")
+        
+        let requestHead = HTTPRequestHead(version: .http1_1, method: .GET, uri: "/", headers: header)
+        context.write(self.wrapOutboundOut(.head(requestHead)), promise: nil)
+        context.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: nil)
+    }
+    
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        let clientResponse = self.unwrapInboundIn(data)
+        
+        switch clientResponse {
+        case .head(let responseHead):
+            print("Received status: \(responseHead.status)")
+        case .body(let byteBuffer):
+            let string = String(buffer: byteBuffer)
+            print("Received: '\(string)' back from the server.")
+        case .end:
+            print("Closing channel.")
+            context.fireChannelRead(self.wrapInboundOut(.ok(0, 123, Date.currentTimestamp)))
+//            context.close(promise: nil)
+        }
+    }
+    
+    
+}
 
 
 
@@ -54,10 +91,7 @@ internal final class HTTPHandler: NSObject {
         self.session = URLSession(configuration: urlsessionConfig, delegate: self, delegateQueue: nil)
         
         let request: URLRequest
-        switch configuration.host {
-        case .icmp(_):
-            cancel()
-            throw PingError.invalidConfiguration("Cannot execute HTTP Ping with ICMP Configuration")
+        switch configuration.endpoint {
         case .ipv4(let url, let port):
             guard let url = prepareURL(url: url, port: port) else {
                 cancel()

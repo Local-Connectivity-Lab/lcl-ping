@@ -6,9 +6,19 @@
 //
 
 import Foundation
+import NIO
+@_spi(AsyncChannel) import NIOCore
+import NIOHTTP1
+import NIOSSL
+
+typealias HTTPOutboundIn = (UInt16, UInt16)
 
 
 internal struct HTTPPing: Pingable {
+    
+    internal init(options: LCLPing.Configuration.HTTPOptions) {
+        self.httpOptions = options
+    }
     
     var summary: PingSummary? {
         get {
@@ -31,13 +41,10 @@ internal struct HTTPPing: Pingable {
             pingStatus
         }
     }
-    
-    
-//    private var timeout: Set<UInt16> = Set()
-//    private var duplicates: Set<UInt16> = Set()
-//    private var pingResults: [PingResult] = []
+
     private var pingStatus: PingState = .ready
     private var pingSummary: PingSummary?
+    private let httpOptions: LCLPing.Configuration.HTTPOptions
     
 //    mutating func start(with configuration: LCLPing.Configuration) throws {
 //
@@ -46,36 +53,62 @@ internal struct HTTPPing: Pingable {
     mutating func start(with configuration: LCLPing.Configuration) async throws {
         pingStatus = .running
         
-        let host: String
-        switch configuration.host {
-        case .ipv4(let h, _):
-            host = h
-        case .ipv6(let h, _):
-            host = h
-        default:
-            pingStatus = .failed
-            throw PingError.invalidConfiguration("Expect IP.IPv4 or IP.IPv6 host. But received \(configuration.host)")
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
+        let bootstrap = ClientBootstrap(group: group)
+            .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
+            .channelInitializer { channel in
+                channel.pipeline.addHTTPClientHandlers(position: .first).flatMap {
+                    channel.pipeline.addHandlers(HTTPDuplexer())
+                }
+            }
+        
+        defer {
+            try! group.syncShutdownGracefully()
         }
         
-        let httpExecutor = HTTPHandler(useServerTiming: false)
-        
-        var pingResponses: [PingResponse] = []
+        let asyncChannel: NIOAsyncChannel<PingResponse, HTTPOutboundIn>
         do {
-            for try await pingResponse in try await httpExecutor.execute(configuration: configuration) {
-                print("received ping response: \(pingResponse)")
-                pingResponses.append(pingResponse)
+            let channel = try await bootstrap.connect(host: "https://www.google.com", port: 443).get()
+            asyncChannel = try await withCheckedThrowingContinuation { continuation in
+                channel.eventLoop.execute {
+                    do {
+                        let asyncChannel = try NIOAsyncChannel<PingResponse, HTTPOutboundIn>(synchronouslyWrapping: channel)
+                        continuation.resume(with: .success(asyncChannel))
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
             }
-            
-            if pingStatus == .running {
-                pingStatus = .finished
-            }
-            
-            pingSummary = summarizePingResponse(pingResponses, host: host)
-            print("summary is \(String(describing: pingSummary))")
         } catch {
             pingStatus = .failed
-            print("Error \(error)")
+            throw PingError.hostConnectionError(error)
         }
+        
+        try await asyncChannel.outboundWriter.write((0,1))
+        
+        for try await res in asyncChannel.inboundStream {
+            print(res)
+        }
+        
+//        let httpExecutor = HTTPHandler(useServerTiming: false)
+//
+//        var pingResponses: [PingResponse] = []
+//        do {
+//            for try await pingResponse in try await httpExecutor.execute(configuration: configuration) {
+//                print("received ping response: \(pingResponse)")
+//                pingResponses.append(pingResponse)
+//            }
+//
+//            if pingStatus == .running {
+//                pingStatus = .finished
+//            }
+//
+//            pingSummary = summarizePingResponse(pingResponses, host: host)
+//            print("summary is \(String(describing: pingSummary))")
+//        } catch {
+//            pingStatus = .failed
+//            print("Error \(error)")
+//        }
         
     }
     
@@ -84,8 +117,4 @@ internal struct HTTPPing: Pingable {
             pingStatus = .stopped
         }
     }
-    
-
-    
-    
 }

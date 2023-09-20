@@ -15,10 +15,6 @@ extension LCLPing {
         
         /// Internet Protocol (IP) that LCLPing supports
         public enum IP {
-            
-            /// ICMP address
-            case icmp(String)
-            
             /// IPv4  address and port(optional)
             case ipv4(String, UInt16?)
             
@@ -26,14 +22,30 @@ extension LCLPing {
             case ipv6(String, UInt16?)
         }
         
-        public init(count: UInt16 = 10, interval: TimeInterval = 1, ttl: UInt16 = 64, timeout: TimeInterval = 1, host: IP, verboseOutput: Bool = false) {
+        public enum PingType {
+            case icmp
+            case http(HTTPOptions)
+        }
+        
+        public struct HTTPOptions {
+            var useServerTiming: Bool = false
+            var enableTLS: Bool = false
+        }
+        
+        public init(type: PingType, endpoint: IP, count: UInt16 = 10, interval: TimeInterval = 1, ttl: UInt16 = 64, timeout: TimeInterval = 1) {
+            self.type = type
+            self.endpoint = endpoint
             self.count = count
             self.interval = interval
             self.timeToLive = ttl
             self.timeout = timeout
-            self.host = host
-            self.verboseOutput = verboseOutput
         }
+        
+        /// The mechanism that LCLPing will use to ping the target host
+        let type: PingType
+        
+        /// The target host that LCLPing will send the Ping request to
+        let endpoint: IP
         
         /// Total number of packets sent
         let count: UInt16
@@ -46,11 +58,8 @@ extension LCLPing {
         
         /// Time, in second, to wait for a reply for each packet sent
         let timeout: TimeInterval
-        
-        /// The destination IP address the packet will be sent to
-        let host: IP
-        
-        /// Option to output more information
-        let verboseOutput: Bool
+//
+//        /// Option to output more information
+//        let verboseOutput: Bool
     }
 }

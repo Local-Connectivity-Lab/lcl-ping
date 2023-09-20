@@ -17,6 +17,8 @@ fileprivate let ICMPPingIdentifier: UInt16 = 0xbeef
 
 internal struct ICMPPing: Pingable {
     
+    internal init() { }
+    
     var status: PingState {
         get {
             pingStatus
@@ -40,15 +42,9 @@ internal struct ICMPPing: Pingable {
     }
     private var asyncChannel: NIOAsyncChannel<PingResponse, ICMPOutboundIn>?
     private var task: Task<(), Error>?
-    
-//    private var timeout: Set<UInt16> = Set()
-//    private var duplicates: Set<UInt16> = Set()
-//    private var pingResults: [PingResult] = []
     private var pingStatus: PingState = .ready
     private var pingSummary: PingSummary?
     private let logger: Logger = Logger(label: "com.lcl.lclping")
-    
-    internal init() { }
     
 //    mutating func start(with configuration: LCLPing.Configuration) throws {
 //        print("non async start")
@@ -69,13 +65,14 @@ internal struct ICMPPing: Pingable {
             }
         
         let host: String
-        switch configuration.host {
-        case .icmp(let h):
+        switch configuration.endpoint {
+        case .ipv4(let h, _):
             host = h
         default:
             pingStatus = .failed
-            throw PingError.invalidConfiguration("Expect IP.ICMP host. But received \(configuration.host)")
+            throw PingError.invalidConfiguration("ICMP with IPv6 is currently not supported")
         }
+
         do {
             let channel = try await bootstrap.connect(host: host, port: 0).get()
             asyncChannel = try await withCheckedThrowingContinuation { continuation in
