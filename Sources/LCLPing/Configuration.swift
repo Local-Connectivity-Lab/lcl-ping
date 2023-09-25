@@ -28,8 +28,16 @@ extension LCLPing {
         }
         
         public struct HTTPOptions {
-            var useServerTiming: Bool = false
-            var enableTLS: Bool = false
+            public var useServerTiming: Bool = false
+            public var enableTLS: Bool = false
+            
+            public init() {
+                
+            }
+            
+            var defaultPort: UInt16 {
+                return enableTLS ? 443 : 80
+            }
         }
         
         public init(type: PingType, endpoint: IP, count: UInt16 = 10, interval: TimeInterval = 1, ttl: UInt16 = 64, timeout: TimeInterval = 1) {

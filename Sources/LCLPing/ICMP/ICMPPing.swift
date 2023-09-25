@@ -75,6 +75,7 @@ internal struct ICMPPing: Pingable {
 
         do {
             let channel = try await bootstrap.connect(host: host, port: 0).get()
+            print(channel.pipeline.debugDescription)
             asyncChannel = try await withCheckedThrowingContinuation { continuation in
                 channel.eventLoop.execute {
                     do {

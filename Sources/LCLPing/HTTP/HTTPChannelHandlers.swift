@@ -11,8 +11,6 @@ import NIOCore
 import NIOHTTP1
 
 
-
-
 internal final class HTTPDuplexer: ChannelDuplexHandler {
     typealias InboundIn = HTTPClientResponsePart
     typealias InboundOut = PingResponse
@@ -20,7 +18,7 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
     typealias OutboundOut = HTTPClientRequestPart
     
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
-        
+        print("[write] enter")
         let (identifer, sequenceNumber) = self.unwrapOutboundIn(data)
         print("identifier = \(identifer), seq number = \(sequenceNumber)")
         
@@ -35,10 +33,12 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
         let requestHead = HTTPRequestHead(version: .http1_1, method: .GET, uri: "/", headers: header)
         context.write(self.wrapOutboundOut(.head(requestHead)), promise: nil)
         context.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: nil)
+        print("[write] content written")
     }
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        let clientResponse = self.unwrapInboundIn(data)
+        let clientResponse: HTTPClientResponsePart = self.unwrapInboundIn(data)
+        print("[read] content read")
         
         switch clientResponse {
         case .head(let responseHead):
@@ -52,6 +52,15 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
 //            context.close(promise: nil)
         }
     }
+}
+
+internal final class HTTPTracingHandler: ChannelDuplexHandler {
+    typealias InboundIn = ByteBuffer
+    typealias InboundOut = ByteBuffer
+    typealias OutboundIn = ByteBuffer
+    typealias OutboundOut = ByteBuffer
+    
+    
     
     
 }
@@ -268,6 +277,7 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
             // completes the async stream
             if let userConfiguration = self.userConfiguration, taskToSeqNum.count == userConfiguration.count {
                 continuation?.finish()
+                session.finishTasksAndInvalidate()
             }
         }
         
