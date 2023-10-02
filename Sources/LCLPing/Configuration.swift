@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import NIOHTTP1
 
 
 extension LCLPing {
@@ -18,8 +19,8 @@ extension LCLPing {
             /// IPv4  address and port(optional)
             case ipv4(String, UInt16?)
             
-            /// IPv6 address and port(optional)
-            case ipv6(String, UInt16?)
+            /// IPv6 address
+            case ipv6(String)
         }
         
         public enum PingType {
@@ -29,14 +30,14 @@ extension LCLPing {
         
         public struct HTTPOptions {
             public var useServerTiming: Bool = false
-            public var enableTLS: Bool = false
+            public var httpHeaders: [String:String] = [
+                "User-Agent": "lclping",
+                "Accept": "application/json",
+                "Connection": "close"
+            ]
             
             public init() {
                 
-            }
-            
-            var defaultPort: UInt16 {
-                return enableTLS ? 443 : 80
             }
         }
         

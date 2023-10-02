@@ -22,4 +22,7 @@ public enum PingError: Error {
     
     case invalidHTTPSession
     case httpRequestFailed(Int)
+    
+    case httpNoMatchingRequest
+    case httpNoResponse
 }

@@ -111,7 +111,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
     }
     
     func errorCaught(context: ChannelHandlerContext, error: Error) {
-        let pingResponse: PingResponse = .error
+        let pingResponse: PingResponse = .error(error)
         context.fireChannelRead(self.wrapInboundOut(pingResponse))
     }
     

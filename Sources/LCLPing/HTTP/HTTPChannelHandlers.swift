@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Collections
 import NIO
 import NIOCore
 import NIOHTTP1
@@ -17,20 +18,32 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
     typealias OutboundIn = HTTPOutboundIn
     typealias OutboundOut = HTTPClientRequestPart
     
+//    private var performanceEntryQueue: Deque<PerformanceEntry>
+    private let url: URL
+    private let configuration: LCLPing.Configuration
+    private let httpOptions: LCLPing.Configuration.HTTPOptions
+    
+    init(url: URL, httpOptions: LCLPing.Configuration.HTTPOptions, configuration: LCLPing.Configuration) {
+        self.url = url
+        self.httpOptions = httpOptions
+        self.configuration = configuration
+//        self.performanceEntryQueue = performanceEntryQueue
+    }
+    
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         print("[write] enter")
         let (identifer, sequenceNumber) = self.unwrapOutboundIn(data)
         print("identifier = \(identifer), seq number = \(sequenceNumber)")
+        var header = HTTPHeaders(self.httpOptions.httpHeaders.map { ($0.key, $0.value) })
+        if !self.httpOptions.httpHeaders.keys.contains("Host"), let host = self.url.host {
+            header.add(name: "Host", value: host)
+        }
         
-        var header = HTTPHeaders()
+        print("Header is \(header)")
+        print("url is \(self.url.absoluteString)")
+        print("path is \(url.path)")
         
-        header.add(name: "Host", value: "google.com")
-        header.add(name: "Connection", value: "keep-alive")
-        header.add(name: "Sec-Fetch-Dest", value: "empty")
-        header.add(name: "Sec-Fetch-Mode", value: "cors")
-        header.add(name: "Sec-Fetch-Site", value: "same-origin")
-        
-        let requestHead = HTTPRequestHead(version: .http1_1, method: .GET, uri: "/", headers: header)
+        let requestHead = HTTPRequestHead(version: .http1_1, method: .GET, uri: url.path.isEmpty ? "/" : url.path, headers: header)
         context.write(self.wrapOutboundOut(.head(requestHead)), promise: nil)
         context.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: nil)
         print("[write] content written")
@@ -42,15 +55,22 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
         
         switch clientResponse {
         case .head(let responseHead):
-            print("Received status: \(responseHead.status)")
-        case .body(let byteBuffer):
-            let string = String(buffer: byteBuffer)
-            print("Received: '\(string)' back from the server.")
+            print("Received status: \(responseHead)")
+            print("status code: \(responseHead.status.code)")
+        case .body(_):
+            ()
         case .end:
-            print("Closing channel.")
-            context.fireChannelRead(self.wrapInboundOut(.ok(0, 123, Date.currentTimestamp)))
-//            context.close(promise: nil)
+            print("finish reading response")
+//            guard var first = performanceEntryQueue.first else {
+//                context.fireChannelRead(self.wrapInboundOut(.error(PingError.httpNoMatchingRequest)))
+//                return
+//            }
+            context.fireChannelRead(self.wrapInboundOut(.ok(1, 1.1, Date.currentTimestamp)))
         }
+    }
+    
+    func channelInactive(context: ChannelHandlerContext) {
+        context.channel.close(mode: .all, promise: nil)
     }
 }
 
@@ -60,7 +80,39 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
     typealias OutboundIn = ByteBuffer
     typealias OutboundOut = ByteBuffer
     
+//    private var performanceEntryQueue: Deque<PerformanceEntry>
     
+    init() {
+//        self.performanceEntryQueue = performanceEntryQueue
+    }
+    
+    func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
+//        if var last = performanceEntryQueue.last {
+//            last.requestStart = Date.currentTimestamp
+//        }
+        print("[DEBUG] write data")
+        context.writeAndFlush(data, promise: promise)
+    }
+    
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+//        if var first = performanceEntryQueue.first {
+//            first.responseStart = Date.currentTimestamp
+//        }
+        print("[DEBUG] read data")
+        context.fireChannelRead(data)
+    }
+    
+    func channelReadComplete(context: ChannelHandlerContext) {
+//        if var first = performanceEntryQueue.first {
+//            first.responseEnd = Date.currentTimestamp
+//        }
+        print("[DEBUG] read data completes")
+        context.fireChannelReadComplete()
+    }
+    
+//    func read(context: ChannelHandlerContext) {
+//        // TODO: probably need to add a state machine to trigger a read signal
+//    }
     
     
 }
@@ -119,8 +171,8 @@ internal final class HTTPHandler: NSObject {
             }
             
             request = prepareRequest(url: url)
-        case .ipv6(let url, let port):
-            guard let url = prepareURL(url: url, port: port) else {
+        case .ipv6(let url):
+            guard let url = prepareURL(url: url, port: nil) else {
                 cancel()
                 throw PingError.invalidIPv6URL
             }
@@ -250,18 +302,19 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
                 self.continuation?.yield(.timeout(taskToSeqNum[taskIdentifier]!))
             default:
                 print("task \(taskIdentifier) has error: \(urlError.localizedDescription)")
-                self.continuation?.yield(.error)
+                self.continuation?.yield(.error(urlError))
             }
             
         } else {
             // no error, let's check the data received
             guard let response = task.response else {
-                self.continuation?.yield(.error)
+                self.continuation?.yield(.error(PingError.httpNoResponse))
                 print("request #\(taskIdentifier) doesnt have response")
                 return
             }
             
-            switch (response as! HTTPURLResponse).statusCode {
+            let statusCode = (response as! HTTPURLResponse).statusCode
+            switch statusCode {
             case 200...299:
                 guard taskToLatency.keys.contains(taskIdentifier) && taskToSeqNum.keys.contains(taskIdentifier) else {
                     fatalError("Unknown URLSession Datatask \(taskIdentifier)")
@@ -271,7 +324,7 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
                     self.continuation?.yield(.ok(seqNum, latency, Date.currentTimestamp))
                 }
             default:
-                self.continuation?.yield(.error)
+                self.continuation?.yield(.error(PingError.httpRequestFailed(statusCode)))
             }
             
             // completes the async stream
