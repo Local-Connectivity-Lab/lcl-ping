@@ -12,7 +12,7 @@ import NIOHTTP1
 import NIOSSL
 import Collections
 
-typealias HTTPOutboundIn = (UInt16, UInt16)
+typealias HTTPOutboundIn = UInt16
 
 
 internal struct HTTPPing: Pingable {
@@ -47,18 +47,13 @@ internal struct HTTPPing: Pingable {
     private var pingStatus: PingState = .ready
     private var pingSummary: PingSummary?
     private let httpOptions: LCLPing.Configuration.HTTPOptions
-    
-    
-    
-//    mutating func start(with configuration: LCLPing.Configuration) throws {
-//
-//    }
+    private var task: Task<(), Error>?
+
     
     mutating func start(with configuration: LCLPing.Configuration) async throws {
         pingStatus = .running
         let addr: String
         var port: UInt16
-//        var performenceEntryQueue: Deque<PerformanceEntry> = Deque(minimumCapacity: Int(configuration.count))
         switch configuration.endpoint {
         case .ipv4(let address, .none):
             addr = address
@@ -74,6 +69,8 @@ internal struct HTTPPing: Pingable {
             throw PingError.invalidIPv4URL
         }
         
+        // TODO: throw error if schema is not http nor https
+        
         let httpOptions = self.httpOptions
         let enableTLS = schema == "https"
         if enableTLS {
@@ -82,7 +79,6 @@ internal struct HTTPPing: Pingable {
         
         
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
-//        let promise = group.next().makePromise(of: Void.self)
         let bootstrap = ClientBootstrap(group: group)
             .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
             .channelInitializer { channel in
@@ -94,9 +90,7 @@ internal struct HTTPPing: Pingable {
                         return channel.pipeline.addHandler(tlsHandler).flatMap {
                             channel.pipeline.addHTTPClientHandlers(position: .last)
                         }.flatMap {
-                            channel.pipeline.addHandler(HTTPDuplexer(url: url, httpOptions: httpOptions, configuration: configuration), position: .last)
-                        }.flatMap {
-                            channel.pipeline.addHandler(HTTPTracingHandler(), position: .first)
+                            channel.pipeline.addHandlers([HTTPTracingHandler(configuration: configuration), HTTPDuplexer(url: url, httpOptions: httpOptions, configuration: configuration)], position: .last)
                         }
                     } catch {
                         fatalError("error \(error)")
@@ -106,9 +100,7 @@ internal struct HTTPPing: Pingable {
                     return channel.pipeline.addHTTPClientHandlers(position: .last).flatMap {
                         channel.pipeline.addHandler(HTTPDuplexer(url: url, httpOptions: httpOptions, configuration: configuration), position: .last)
                     }.flatMap {
-                        channel.pipeline.addHandlers(HTTPTracingHandler(), position: .first)
-                    }.flatMap {
-                        channel.pipeline.addHandler(HTTPTracingHandler(), position: .first)
+                        channel.pipeline.addHandlers([HTTPTracingHandler(configuration: configuration), HTTPDuplexer(url: url, httpOptions: httpOptions, configuration: configuration)], position: .last)
                     }
                 }
             }
@@ -136,10 +128,30 @@ internal struct HTTPPing: Pingable {
             pingStatus = .failed
             throw PingError.hostConnectionError(error)
         }
-
-        try await asyncChannel.outboundWriter.write((0,1))
-        for try await res in asyncChannel.inboundStream {
-            print(res)
+        
+        
+//        task = Task(priority: .background) { [asyncChannel] in
+//            var cnt: UInt16 = 0
+//            var nextSequenceNumber: UInt16 = 0
+//            do {
+//                while !Task.isCancelled && cnt != configuration.count {
+//                    print("sending #\(cnt)")
+//                    try await asyncChannel.outboundWriter.write(nextSequenceNumber)
+//                    cnt += 1
+//                    nextSequenceNumber += 1
+//                    try await Task.sleep(nanoseconds: configuration.interval.nanosecond)
+//                }
+//            } catch {
+//                throw PingError.sendPingFailed(error)
+//            }
+//        }
+        
+        try await asyncChannel.outboundWriter.write(1)
+        
+        var pingResponses: [PingResponse] = []
+        for try await pingResponse in asyncChannel.inboundStream {
+            print("received ping response: \(pingResponse)")
+            pingResponses.append(pingResponse)
         }
         
         
@@ -165,6 +177,10 @@ internal struct HTTPPing: Pingable {
 //        }
         
     }
+    
+//    private func sendRequest(seqNum: UInt16) async throws {
+//        
+//    }
     
     mutating func stop() {
         if pingStatus != .failed {

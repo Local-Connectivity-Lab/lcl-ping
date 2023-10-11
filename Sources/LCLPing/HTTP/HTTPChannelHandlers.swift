@@ -13,12 +13,11 @@ import NIOHTTP1
 
 
 internal final class HTTPDuplexer: ChannelDuplexHandler {
-    typealias InboundIn = HTTPClientResponsePart
+    typealias InboundIn = LatencyEntry // latency entry
     typealias InboundOut = PingResponse
     typealias OutboundIn = HTTPOutboundIn
-    typealias OutboundOut = HTTPClientRequestPart
+    typealias OutboundOut = (UInt16, HTTPRequestHead) // seqNum, HTTP Request
     
-//    private var performanceEntryQueue: Deque<PerformanceEntry>
     private let url: URL
     private let configuration: LCLPing.Configuration
     private let httpOptions: LCLPing.Configuration.HTTPOptions
@@ -27,13 +26,12 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
         self.url = url
         self.httpOptions = httpOptions
         self.configuration = configuration
-//        self.performanceEntryQueue = performanceEntryQueue
     }
     
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         print("[write] enter")
-        let (identifer, sequenceNumber) = self.unwrapOutboundIn(data)
-        print("identifier = \(identifer), seq number = \(sequenceNumber)")
+        let sequenceNumber = self.unwrapOutboundIn(data)
+        print("seq number = \(sequenceNumber)")
         var header = HTTPHeaders(self.httpOptions.httpHeaders.map { ($0.key, $0.value) })
         if !self.httpOptions.httpHeaders.keys.contains("Host"), let host = self.url.host {
             header.add(name: "Host", value: host)
@@ -44,85 +42,116 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
         print("path is \(url.path)")
         
         let requestHead = HTTPRequestHead(version: .http1_1, method: .GET, uri: url.path.isEmpty ? "/" : url.path, headers: header)
-        context.write(self.wrapOutboundOut(.head(requestHead)), promise: nil)
-        context.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: nil)
+        context.write(self.wrapOutboundOut((sequenceNumber, requestHead)), promise: promise)
         print("[write] content written")
     }
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        let clientResponse: HTTPClientResponsePart = self.unwrapInboundIn(data)
-        print("[read] content read")
+        print("[HTTPDuplexer] read")
+        let latencyEntry = self.unwrapInboundIn(data)
+        print("[HTTPDuplexer] decode done")
         
-        switch clientResponse {
-        case .head(let responseHead):
-            print("Received status: \(responseHead)")
-            print("status code: \(responseHead.status.code)")
-        case .body(_):
-            ()
-        case .end:
-            print("finish reading response")
-//            guard var first = performanceEntryQueue.first else {
-//                context.fireChannelRead(self.wrapInboundOut(.error(PingError.httpNoMatchingRequest)))
-//                return
-//            }
-            context.fireChannelRead(self.wrapInboundOut(.ok(1, 1.1, Date.currentTimestamp)))
+        switch latencyEntry.latencyStatus {
+            
+        case .finished:
+            let latency = (latencyEntry.responseEnd - latencyEntry.requestStart) * 1000.0
+            context.fireChannelRead(self.wrapInboundOut(.ok(latencyEntry.seqNum, latency, Date.currentTimestamp)))
+        case .timeout:
+            context.fireChannelRead(self.wrapInboundOut(.timeout(latencyEntry.seqNum)))
+        case .error(let statusCode):
+            switch statusCode {
+            case 200...299:
+                let latency = (latencyEntry.responseEnd - latencyEntry.requestStart) * 1000.0
+                context.fireChannelRead(self.wrapInboundOut(.ok(latencyEntry.seqNum, latency, Date.currentTimestamp)))
+            case 300...399:
+                context.fireChannelRead(self.wrapInboundOut(.error(PingError.httpRedirect)))
+            case 400...499:
+                context.fireChannelRead(self.wrapInboundOut(.error(PingError.httpClientError)))
+            case 500...599:
+                context.fireChannelRead(self.wrapInboundOut(.error(PingError.httpServerError)))
+            default:
+                context.fireChannelRead(self.wrapInboundOut(.error(PingError.httpUnknownStatus(statusCode))))
+            }
+        case .waiting:
+            fatalError("Latency Entry should not be in waiting state.")
         }
     }
     
-    func channelInactive(context: ChannelHandlerContext) {
-        context.channel.close(mode: .all, promise: nil)
-    }
+//    func channelInactive(context: ChannelHandlerContext) {
+//        context.channel.close(mode: .all, promise: nil)
+//    }
 }
 
 internal final class HTTPTracingHandler: ChannelDuplexHandler {
-    typealias InboundIn = ByteBuffer
-    typealias InboundOut = ByteBuffer
-    typealias OutboundIn = ByteBuffer
-    typealias OutboundOut = ByteBuffer
+    typealias InboundIn = HTTPClientResponsePart
+    typealias InboundOut = LatencyEntry // latency
+    typealias OutboundIn = (UInt16, HTTPRequestHead) // seqNum, HTTP Request
+    typealias OutboundOut = HTTPClientRequestPart
     
-//    private var performanceEntryQueue: Deque<PerformanceEntry>
+    private let configuration: LCLPing.Configuration
+    private var latencyEntry: LatencyEntry?
+    private var timerScheduler: TimerScheduler
     
-    init() {
-//        self.performanceEntryQueue = performanceEntryQueue
+    init(configuration: LCLPing.Configuration) {
+        self.configuration = configuration
+        self.timerScheduler = TimerScheduler()
     }
     
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
-//        if var last = performanceEntryQueue.last {
-//            last.requestStart = Date.currentTimestamp
-//        }
-        print("[DEBUG] write data")
-        context.writeAndFlush(data, promise: promise)
+        let (sequenceNum, httpRequest) = self.unwrapOutboundIn(data)
+        var le = LatencyEntry(seqNum: sequenceNum)
+        le.requestStart = Date.currentTimestamp
+        self.latencyEntry = le
+        context.write(self.wrapOutboundOut(.head(httpRequest)), promise: promise)
+        context.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: promise)
+        
+        timerScheduler.schedule(delay: self.configuration.timeout, key: sequenceNum) { [weak self] in
+            if let self = self, var le = self.latencyEntry {
+                le.latencyStatus = .timeout
+                context.fireChannelRead(self.wrapInboundOut(le))
+                return
+            }
+        }
     }
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-//        if var first = performanceEntryQueue.first {
-//            first.responseStart = Date.currentTimestamp
-//        }
-        print("[DEBUG] read data")
-        context.fireChannelRead(data)
+        print("[HTTPTracingHandler] read")
+        let httpResponse: HTTPClientResponsePart = self.unwrapInboundIn(data)
+        guard var le = self.latencyEntry else {
+            fatalError("No corresponding latency entry found")
+        }
+
+        switch httpResponse {
+        case .head(let responseHead):
+            print("Received status: \(responseHead)")
+            let statusCode = responseHead.status.code
+            switch statusCode {
+            case 200...299:
+                le.responseStart = Date.currentTimestamp
+            case 300...399,
+                400...499,
+                500...599:
+                le.latencyStatus = .error(statusCode)
+            default:
+                le.latencyStatus = .error(statusCode)
+            }
+        case .body(_):
+            break
+        case .end:
+            print("finish reading response")
+            
+            guard var le = self.latencyEntry else {
+                fatalError("Latency Entry should not be empty")
+            }
+            le.responseEnd = Date.currentTimestamp
+            le.latencyStatus = .finished
+            context.fireChannelRead(self.wrapInboundOut(le))
+            self.latencyEntry = nil
+            
+            context.close(mode: .all, promise: nil)
+        }
     }
-    
-    func channelReadComplete(context: ChannelHandlerContext) {
-//        if var first = performanceEntryQueue.first {
-//            first.responseEnd = Date.currentTimestamp
-//        }
-        print("[DEBUG] read data completes")
-        context.fireChannelReadComplete()
-    }
-    
-//    func read(context: ChannelHandlerContext) {
-//        // TODO: probably need to add a state machine to trigger a read signal
-//    }
-    
-    
 }
-
-
-
-
-
-
-
 
 
 #if os(macOS) || os(iOS)

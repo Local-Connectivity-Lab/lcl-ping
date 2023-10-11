@@ -57,14 +57,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
 //        }
     }
     
-    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-//        context.eventLoop.execute { [weak self] in
-            
-//            guard let self = self else {
-//                print("unable to fetch self in duplexer read")
-//                return
-//            }
-            
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {            
         let icmpResponse = self.unwrapInboundIn(data)
         
         // TODO: need to handle more response type
@@ -97,7 +90,6 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         if self.seqToRequest.count == self.configuration.count && self.seqToResponse.count == self.configuration.count {
             context.close(mode: .all, promise: nil)
         }
-//        }
     }
     
     func channelActive(context: ChannelHandlerContext) {

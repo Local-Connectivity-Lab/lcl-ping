@@ -25,4 +25,8 @@ public enum PingError: Error {
     
     case httpNoMatchingRequest
     case httpNoResponse
+    case httpRedirect
+    case httpClientError
+    case httpServerError
+    case httpUnknownStatus(UInt)
 }
