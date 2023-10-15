@@ -39,20 +39,18 @@ internal struct HTTPPing: Pingable {
             pingStatus
         }
     }
+    
+    // TODO: add state machine
 
     private var pingStatus: PingState = .ready
     private var pingSummary: PingSummary?
     private let httpOptions: LCLPing.Configuration.HTTPOptions
-    private var task: Task<(), Error>?
     private var pingResponses: [PingResponse]
-
     
     internal init(options: LCLPing.Configuration.HTTPOptions) {
         self.httpOptions = options
-        
         self.pingResponses = []
     }
-
     
     mutating func start(with configuration: LCLPing.Configuration) async throws {
         pingStatus = .running
@@ -69,7 +67,6 @@ internal struct HTTPPing: Pingable {
             throw PingError.operationNotSupported("IPv6 currently not supported")
         }
         
-        // TODO: throw error if schema is not http nor https
         guard let url = URL(string: addr) else {
             throw PingError.invalidIPv4URL
         }
@@ -78,7 +75,7 @@ internal struct HTTPPing: Pingable {
             throw PingError.httpMissingHost
         }
         
-        guard let schema = url.scheme else {
+        guard let schema = url.scheme, ["http", "https"].contains(schema) else {
             throw PingError.httpMissingSchema
         }
         
@@ -92,8 +89,10 @@ internal struct HTTPPing: Pingable {
         let pingResponses = try await withThrowingTaskGroup(of: PingResponse.self, returning: [PingResponse].self) { group in
             var pingResponses: [PingResponse] = []
             for cnt in 0..<configuration.count {
+                if pingStatus == .stopped {
+                    group.cancelAll()
+                }
                 group.addTask {
-                    
                     let asyncChannel = try await ClientBootstrap(group: eventLoopGroup).connect(host: host, port: Int(port)) { channel in
                         channel.eventLoop.makeCompletedFuture {
                             if enableTLS {

@@ -54,15 +54,14 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
         switch latencyEntry.latencyStatus {
             
         case .finished:
-            let latency = (latencyEntry.responseEnd - latencyEntry.requestStart) * 1000.0
+            let latency = (latencyEntry.responseEnd - latencyEntry.requestStart) * 1000.0 - latencyEntry.serverTiming
             context.fireChannelRead(self.wrapInboundOut(.ok(latencyEntry.seqNum, latency, Date.currentTimestamp)))
         case .timeout:
             context.fireChannelRead(self.wrapInboundOut(.timeout(latencyEntry.seqNum)))
         case .error(let statusCode):
             switch statusCode {
             case 200...299:
-                let latency = (latencyEntry.responseEnd - latencyEntry.requestStart) * 1000.0
-                context.fireChannelRead(self.wrapInboundOut(.ok(latencyEntry.seqNum, latency, Date.currentTimestamp)))
+                fatalError("HTTP Handler in some error state while the status code is \(statusCode). Please report this to the developer")
             case 300...399:
                 context.fireChannelRead(self.wrapInboundOut(.error(PingError.httpRedirect)))
             case 400...499:
@@ -78,9 +77,6 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
         
         context.channel.close(mode: .all, promise: nil)
     }
-    
-//    func channelInactive(context: ChannelHandlerContext) {
-//    }
 }
 
 internal final class HTTPTracingHandler: ChannelDuplexHandler {
