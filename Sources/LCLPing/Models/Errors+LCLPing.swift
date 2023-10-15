@@ -29,4 +29,6 @@ public enum PingError: Error {
     case httpClientError
     case httpServerError
     case httpUnknownStatus(UInt)
+    case httpMissingHost
+    case httpMissingSchema
 }

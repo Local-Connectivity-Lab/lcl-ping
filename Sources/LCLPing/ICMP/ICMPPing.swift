@@ -7,6 +7,7 @@
 
 import Foundation
 @_spi(AsyncChannel) import NIOCore
+@_spi(AsyncChannel) import NIOPosix
 import NIO
 import NIOPosix
 import Logging
@@ -72,24 +73,43 @@ internal struct ICMPPing: Pingable {
             pingStatus = .failed
             throw PingError.invalidConfiguration("ICMP with IPv6 is currently not supported")
         }
-
+        
         do {
-            let channel = try await bootstrap.connect(host: host, port: 0).get()
-            print(channel.pipeline.debugDescription)
-            asyncChannel = try await withCheckedThrowingContinuation { continuation in
-                channel.eventLoop.execute {
-                    do {
-                        let asyncChannel = try NIOAsyncChannel<PingResponse, ICMPOutboundIn>(synchronouslyWrapping: channel)
-                        continuation.resume(with: .success(asyncChannel))
-                    } catch {
-                        continuation.resume(throwing: error)
-                    }
-                }
-            }
+            
+            asyncChannel = try await DatagramBootstrap(group: group)
+               .protocolSubtype(.init(.icmp))
+               .connect(host: host, port: 0) { channel in
+                   channel.eventLoop.makeCompletedFuture {
+                       try channel.pipeline.syncOperations.addHandlers(
+                           [IPDecoder(), ICMPDecoder(), ICMPDuplexer(configuration: configuration)]
+                       )
+                       
+                       return try NIOAsyncChannel<PingResponse, ICMPOutboundIn>(synchronouslyWrapping: channel)
+               }
+           }
+            
         } catch {
             pingStatus = .failed
             throw PingError.hostConnectionError(error)
         }
+
+//        do {
+//            let channel = try await bootstrap.connect(host: host, port: 0).get()
+//            print(channel.pipeline.debugDescription)
+//            asyncChannel = try await withCheckedThrowingContinuation { continuation in
+//                channel.eventLoop.execute {
+//                    do {
+//                        let asyncChannel = try NIOAsyncChannel<PingResponse, ICMPOutboundIn>(synchronouslyWrapping: channel)
+//                        continuation.resume(with: .success(asyncChannel))
+//                    } catch {
+//                        continuation.resume(throwing: error)
+//                    }
+//                }
+//            }
+//        } catch {
+//            pingStatus = .failed
+//            throw PingError.hostConnectionError(error)
+//        }
 
         guard let asyncChannel = asyncChannel else {
             throw PingError.failedToInitialzeChannel
@@ -97,7 +117,7 @@ internal struct ICMPPing: Pingable {
         
         print("Channel intialized")
 
-        task = Task(priority: .background) { [asyncChannel] in
+        task = Task { [asyncChannel] in
             var cnt: UInt16 = 0
             var nextSequenceNumber: UInt16 = 0
             do {

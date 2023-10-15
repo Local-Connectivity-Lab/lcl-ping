@@ -75,10 +75,11 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
         case .waiting:
             fatalError("Latency Entry should not be in waiting state.")
         }
+        
+        context.channel.close(mode: .all, promise: nil)
     }
     
 //    func channelInactive(context: ChannelHandlerContext) {
-//        context.channel.close(mode: .all, promise: nil)
 //    }
 }
 
@@ -89,11 +90,13 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
     typealias OutboundOut = HTTPClientRequestPart
     
     private let configuration: LCLPing.Configuration
+    private let httpOptions: LCLPing.Configuration.HTTPOptions
     private var latencyEntry: LatencyEntry?
     private var timerScheduler: TimerScheduler
     
-    init(configuration: LCLPing.Configuration) {
+    init(configuration: LCLPing.Configuration, httpOptions: LCLPing.Configuration.HTTPOptions) {
         self.configuration = configuration
+        self.httpOptions = httpOptions
         self.timerScheduler = TimerScheduler()
     }
     
@@ -128,6 +131,9 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
             switch statusCode {
             case 200...299:
                 le.responseStart = Date.currentTimestamp
+                if httpOptions.useServerTiming {
+                    le.serverTiming = responseHead.headers.contains(name: "Server-Timing") ? matchServerTiming(field: responseHead.headers.first(name: "Server-Timing")!) : estimatedServerTiming
+                }
             case 300...399,
                 400...499,
                 500...599:
@@ -147,8 +153,6 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
             le.latencyStatus = .finished
             context.fireChannelRead(self.wrapInboundOut(le))
             self.latencyEntry = nil
-            
-            context.close(mode: .all, promise: nil)
         }
     }
 }
@@ -168,7 +172,6 @@ internal final class HTTPHandler: NSObject {
     private var session: URLSession?
     private var taskToSeqNum: Dictionary<Int, UInt16> = [:]
     private var taskToLatency: Dictionary<Int, Double?> = [:]
-    private static let estimatedServerTiming: Double = 15
     private var userConfiguration: LCLPing.Configuration?
     
     private var continuation: AsyncStream<PingResponse>.Continuation?
@@ -389,32 +392,11 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
         
         if (200...299).contains(httpResponse.statusCode) {
             if let serverTimingField = httpResponse.value(forHTTPHeaderField: "Server-Timing") {
-                var totalTiming: Double = .zero
-
-                if #available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *) {
-                    let pattern = #/dur=([\d.]+)/#
-                    let matches = serverTimingField.matches(of: pattern)
-                    for match in matches {
-                        totalTiming += Double(match.output.1) ?? 0.0
-                    }
-                } else {
-                    do {
-                        let pattern = try NSRegularExpression(pattern: #"dur=([\d.]+)"#)
-                        let matchingResult = pattern.matches(in: serverTimingField, range: NSRange(location: .zero, length: serverTimingField.count))
-                        matchingResult.forEach { result in
-                            let nsRange = result.range(at: 1)
-                            if let range = Range(nsRange, in: serverTimingField) {
-                                totalTiming += Double(serverTimingField[range]) ?? 0.0
-                            }
-                        }
-                    } catch {
-                        // TODO: handle error
-                        fatalError("Invalid Regular Expression: \(error)")
-                    }
-                }
+                let totalTiming: Double = matchServerTiming(field: serverTimingField)
+                taskToLatency[taskIdentifier] = (responseEnd - requestStart) * 1000.0 - totalTiming
             } else {
                 // use estimated timing
-                taskToLatency[taskIdentifier] = HTTPHandler.estimatedServerTiming
+                taskToLatency[taskIdentifier] = (responseEnd - requestStart) * 1000.0 - estimatedServerTiming
             }
         } else {
             // error status code

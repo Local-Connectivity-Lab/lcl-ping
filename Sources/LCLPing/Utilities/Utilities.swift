@@ -7,6 +7,32 @@
 
 import Foundation
 
+internal func matchServerTiming(field: String) -> Double {
+    var totalTiming: Double = 0.0
+    if #available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *) {
+        let pattern = #/dur=([\d.]+)/#
+        let matches = field.matches(of: pattern)
+        for match in matches {
+            totalTiming += Double(match.output.1) ?? 0.0
+        }
+    } else {
+        do {
+            let pattern = try NSRegularExpression(pattern: #"dur=([\d.]+)"#)
+            let matchingResult = pattern.matches(in: field, range: NSRange(location: .zero, length: field.count))
+            matchingResult.forEach { result in
+                let nsRange = result.range(at: 1)
+                if let range = Range(nsRange, in: field) {
+                    totalTiming += Double(field[range]) ?? 0.0
+                }
+            }
+        } catch {
+            // TODO: handle error
+            fatalError("Invalid Regular Expression: \(error)")
+        }
+    }
+    return totalTiming
+}
+
 
 internal func sizeof<T>(_ type: T.Type) -> Int {
     return MemoryLayout<T>.size
