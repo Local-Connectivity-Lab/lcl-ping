@@ -15,7 +15,7 @@ protocol Pingable {
     
     mutating func stop()
     
-    var summary: PingSummary? { set get }
+    var summary: PingSummary? { get }
     
-    var status: PingState { get }
+    var pingStatus: PingState { get }
 }

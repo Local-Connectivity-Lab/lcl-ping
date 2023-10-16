@@ -1,5 +1,5 @@
 //
-//  PingStateMachine.swift
+//  PingState.swift';
 //  
 //
 //  Created by JOHN ZZN on 9/1/23.
@@ -17,8 +17,8 @@ public enum PingState {
     /// LCLPing is in progress of sending and receiving ping requests and responses
     case running
     
-    /// LCLPing failed
-    case failed
+    /// LCLPing encountered error(s)
+    case error
     
     /// LCLPing is stopped by explicit `stop()` and ping summary is ready
     case stopped

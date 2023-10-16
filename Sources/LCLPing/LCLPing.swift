@@ -7,7 +7,7 @@ public struct LCLPing {
     var ping: Pingable?
     
     var status: PingState? {
-        ping?.status
+        ping?.pingStatus
     }
     
     var summary: PingSummary? {
@@ -29,14 +29,12 @@ public struct LCLPing {
         print("DONE!")
     }
     
-//    private func validateConfiguration(type: LCLPing.PingType, configuration: LCLPing.Configuration) -> Bool {
-//        switch configuration.host {
-//        case .icmp(_):
-//            return type == .icmp
-//        case .ipv4(_, _):
-//            <#code#>
-//        case .ipv6(_, _):
-//            <#code#>
-//        }
-//    }
+    public mutating func stop() {
+        print("try to stop ping")
+        Task {
+            try await Task.sleep(nanoseconds: 2_000_000_001)
+        }
+        ping?.stop()
+        print("ping stopped")
+    }
 }

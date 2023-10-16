@@ -22,7 +22,7 @@ internal struct HTTPPing: Pingable {
         get {
             // return empty if ping is still running
             switch pingStatus {
-            case .ready, .running, .failed:
+            case .ready, .running, .error:
                 return .empty
             case .stopped, .finished:
                 return pingSummary
@@ -33,16 +33,9 @@ internal struct HTTPPing: Pingable {
             
         }
     }
-    
-    var status: PingState {
-        get {
-            pingStatus
-        }
-    }
-    
-    // TODO: add state machine
 
-    private var pingStatus: PingState = .ready
+    var pingStatus: PingState = .ready
+
     private var pingSummary: PingSummary?
     private let httpOptions: LCLPing.Configuration.HTTPOptions
     private var pingResponses: [PingResponse]
@@ -91,6 +84,7 @@ internal struct HTTPPing: Pingable {
             for cnt in 0..<configuration.count {
                 if pingStatus == .stopped {
                     group.cancelAll()
+                    return pingResponses
                 }
                 group.addTask {
                     let asyncChannel = try await ClientBootstrap(group: eventLoopGroup).connect(host: host, port: Int(port)) { channel in
@@ -163,7 +157,7 @@ internal struct HTTPPing: Pingable {
     }
     
     mutating func stop() {
-        if pingStatus != .failed {
+        if pingStatus != .error {
             pingStatus = .stopped
         }
     }
