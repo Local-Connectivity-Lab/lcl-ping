@@ -31,9 +31,6 @@ public struct LCLPing {
     
     public mutating func stop() {
         print("try to stop ping")
-        Task {
-            try await Task.sleep(nanoseconds: 2_000_000_001)
-        }
         ping?.stop()
         print("ping stopped")
     }

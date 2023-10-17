@@ -17,10 +17,6 @@ typealias ICMPOutboundIn = (UInt16, UInt16)
 fileprivate let ICMPPingIdentifier: UInt16 = 0xbeef
 
 internal struct ICMPPing: Pingable {
-    
-    internal init() { }
-    
-    
     var summary: PingSummary? {
         get {
             // return empty if ping is still running
@@ -34,15 +30,17 @@ internal struct ICMPPing: Pingable {
     }
     
     private(set) var pingStatus: PingState = .ready
-    
     private var asyncChannel: NIOAsyncChannel<PingResponse, ICMPOutboundIn>?
     private var pingSummary: PingSummary?
+    private var task: Task<(), Error>?
     private let logger: Logger = Logger(label: "com.lcl.lclping")
+    
+    internal init() { }
     
     // TODO: implement non-async version
     
     mutating func start(with configuration: LCLPing.Configuration) async throws {
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         
         let host: String
         switch configuration.endpoint {
@@ -77,62 +75,65 @@ internal struct ICMPPing: Pingable {
         
         precondition(pingStatus == .ready, "ping status is \(pingStatus)")
         pingStatus = .running
+        print(asyncChannel.channel.pipeline.debugDescription)
         
-        do {
-            let pingResponses = try await withThrowingTaskGroup(of: Void.self, returning: [PingResponse].self) { group in
-                var pingResponses: [PingResponse] = []
-                for cnt in 0..<configuration.count {
-                    if pingStatus == .error || pingStatus == .stopped {
-                        print("cancel all subtasks")
-                        group.cancelAll()
-                        return pingResponses
+        task = Task(priority: .background) { [asyncChannel] in
+            var cnt: UInt16 = 0
+            do {
+                while !Task.isCancelled && cnt != configuration.count {
+                    if cnt >= 1 {
+                        try await Task.sleep(nanoseconds: configuration.interval.nanosecond)
                     }
-                    
-                    group.addTask {
-                        do {
-                            try await Task.sleep(nanoseconds: UInt64(cnt) * configuration.interval.nanosecond)
-                            print("sending #\(cnt)")
-                            try await asyncChannel.outboundWriter.write((ICMPPingIdentifier, cnt))
-                        } catch {
-                            throw PingError.sendPingFailed(error)
-                        }
-                    }
-                }
-        
-                for try await pingResponse in asyncChannel.inboundStream {
-                    print("received ping response: \(pingResponse)")
-                    pingResponses.append(pingResponse)
+                    print("sending #\(cnt)")
+                    try await asyncChannel.outboundWriter.write((ICMPPingIdentifier, cnt))
+                    cnt += 1
                 }
                 
-                
-                print("[before] group is cancelled? \(group.isCancelled)")
-                if (pingStatus == .stopped || pingStatus == .error) && !group.isCancelled {
-                    group.cancelAll()
+                if Task.isCancelled {
+                    asyncChannel.channel.close(mode: .all, promise: nil)
                 }
-                
-                print("[after] group is cancelled? \(group.isCancelled)")
-                
-                return pingResponses
+            } catch {
+                throw PingError.sendPingFailed(error)
             }
-            
-            pingSummary = summarizePingResponse(pingResponses, host: host)
+        }
+        
+        var pingResponses: [PingResponse] = []
+
+        for try await pingResponse in asyncChannel.inboundStream {
+            print("received ping response: \(pingResponse)")
+            pingResponses.append(pingResponse)
+        }
+        
+        let taskResult = await task?.result
+        switch taskResult {
+        case .success:
+            self.pingSummary = summarizePingResponse(pingResponses, host: host)
             
             precondition(pingStatus == .running || pingStatus == .stopped)
             
-            if pingStatus != .stopped {
+            if self.pingStatus != .stopped {
                 pingStatus = .finished
             }
             print("summary is \(String(describing: pingSummary))")
-        } catch {
+        case .failure(let failure):
             pingStatus = .error
-            throw error
+            throw failure
+        case .none:
+            pingStatus = .error
+            fatalError("No task result found")
         }
     }
     
     mutating func stop() {
-        print("stopping the icmp ping")
-        pingStatus = .stopped
-        asyncChannel?.channel.close(mode: .all, promise: nil)
-        print("icmp ping stopped")
+        switch pingStatus {
+        case .ready, .running:
+            print("stopping the icmp ping")
+            self.task?.cancel()
+            self.pingStatus = .stopped
+            self.asyncChannel?.channel.close(mode: .all, promise: nil)
+            print("icmp ping stopped")
+        case .error, .stopped, .finished:
+            print("already in end state. no need to stop")
+        }
     }
 }
