@@ -31,4 +31,6 @@ public enum PingError: Error {
     case httpUnknownStatus(UInt)
     case httpMissingHost
     case httpMissingSchema
+    case httpUnableToEstablishTLSConnection
+    case httpMissingResult
 }

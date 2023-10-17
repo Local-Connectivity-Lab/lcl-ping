@@ -42,6 +42,10 @@ internal struct ICMPPing: Pingable {
     mutating func start(with configuration: LCLPing.Configuration) async throws {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         
+        defer {
+            try! group.syncShutdownGracefully()
+        }
+        
         let host: String
         switch configuration.endpoint {
         case .ipv4(let h, _):
@@ -62,7 +66,6 @@ internal struct ICMPPing: Pingable {
                        return try NIOAsyncChannel<PingResponse, ICMPOutboundIn>(synchronouslyWrapping: channel)
                }
            }
-            
         } catch {
             pingStatus = .error
             throw PingError.hostConnectionError(error)

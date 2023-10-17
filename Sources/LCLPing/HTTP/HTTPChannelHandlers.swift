@@ -29,9 +29,9 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
     }
     
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
-        print("[write] enter")
+//        print("[write] enter")
         let sequenceNumber = self.unwrapOutboundIn(data)
-        print("seq number = \(sequenceNumber)")
+//        print("seq number = \(sequenceNumber)")
         var header = HTTPHeaders(self.httpOptions.httpHeaders.map { ($0.key, $0.value) })
         if !self.httpOptions.httpHeaders.keys.contains("Host"), let host = self.url.host {
             header.add(name: "Host", value: host)
@@ -114,7 +114,7 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
     }
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        print("[HTTPTracingHandler] read")
+//        print("[HTTPTracingHandler] read")
         let httpResponse: HTTPClientResponsePart = self.unwrapInboundIn(data)
         guard var le = self.latencyEntry else {
             fatalError("No corresponding latency entry found")
@@ -128,6 +128,7 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
             case 200...299:
                 le.responseStart = Date.currentTimestamp
                 if httpOptions.useServerTiming {
+                    print("use server timing")
                     le.serverTiming = responseHead.headers.contains(name: "Server-Timing") ? matchServerTiming(field: responseHead.headers.first(name: "Server-Timing")!) : estimatedServerTiming
                 }
             case 300...399,
