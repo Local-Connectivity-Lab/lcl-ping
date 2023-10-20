@@ -18,4 +18,12 @@ extension Date {
             return Date().timeIntervalSince1970
         }
     }
+    
+    static func toDateString(timeInterval: TimeInterval) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM/dd/yyyy HH:mm:ss"
+        
+        let date = Date(timeIntervalSince1970: timeInterval)
+        return formatter.string(from: date)
+    }
 }

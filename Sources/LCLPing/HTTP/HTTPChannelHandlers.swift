@@ -122,13 +122,13 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
 
         switch httpResponse {
         case .head(let responseHead):
-            print("Received status: \(responseHead)")
+//            print("Received status: \(responseHead)")
             let statusCode = responseHead.status.code
             switch statusCode {
             case 200...299:
                 le.responseStart = Date.currentTimestamp
                 if httpOptions.useServerTiming {
-                    print("use server timing")
+//                    print("use server timing")
                     le.serverTiming = responseHead.headers.contains(name: "Server-Timing") ? matchServerTiming(field: responseHead.headers.first(name: "Server-Timing")!) : estimatedServerTiming
                 }
             case 300...399,

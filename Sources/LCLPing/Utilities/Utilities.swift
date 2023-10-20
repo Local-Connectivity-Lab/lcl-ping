@@ -84,3 +84,28 @@ internal func summarizePingResponse(_ pingResponses: [PingResponse], host: Strin
     
     return pingSummary
 }
+
+
+internal func printSummary(_ pingSummary: PingSummary) {
+    print("====== Ping Result ======")
+    print("Host: \(pingSummary.ipAddress)")
+    print("Total Count: \(pingSummary.totalCount)")
+    
+    print("====== Details ======")
+    
+    for detail in pingSummary.details {
+        print("#\(detail.seqNum): \(detail.latency.round(to: 2)) ms.  [\(Date.toDateString(timeInterval: detail.timestamp))]")
+    }
+    
+    print("Duplicate: \(pingSummary.duplicates.sorted())")
+    print("Timeout: \(pingSummary.timeout.sorted())")
+    
+    print("======= Statistics =======")
+    print("Jitter: \(pingSummary.jitter.round(to: 2)) ms")
+    print("Average: \(pingSummary.avg.round(to: 2)) ms")
+    print("Medium: \(pingSummary.median.round(to: 2)) ms")
+    print("Min: \(pingSummary.min.round(to: 2)) ms")
+    print("Max: \(pingSummary.max.round(to: 2)) ms")
+    print("Standard Deviation: \(pingSummary.stdDev.round(to: 2)) ms")
+    
+}

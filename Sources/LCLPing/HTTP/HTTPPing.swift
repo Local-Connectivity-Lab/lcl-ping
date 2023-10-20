@@ -115,10 +115,12 @@ internal struct HTTPPing: Pingable {
                     }
                 }
                 
-                // TODO: handle cancellation here!
-
-                for try await result in group {
-                    pingResponses.append(result)
+                while pingStatus != .stopped, let next = try await group.next() {
+                    pingResponses.append(next)
+                }
+                
+                if pingStatus == .stopped {
+                    group.cancelAll()
                 }
                 
                 return pingResponses
@@ -133,9 +135,10 @@ internal struct HTTPPing: Pingable {
             case .finished, .ready, .error:
                 fatalError("wrong state")
             }
-            
 
-            print("summary is \(String(describing: pingSummary))")
+            if let pingSummary = pingSummary {
+                printSummary(pingSummary)
+            }
         } catch {
             pingStatus = .error
             throw PingError.sendPingFailed(error)
