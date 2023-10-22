@@ -170,7 +170,6 @@ internal struct HTTPPing: Pingable {
     }
     
     mutating func stop() {
-        
         switch pingStatus {
         case .ready, .running:
             pingStatus = .stopped

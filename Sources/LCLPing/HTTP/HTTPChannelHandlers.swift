@@ -13,10 +13,10 @@ import NIOHTTP1
 
 
 internal final class HTTPDuplexer: ChannelDuplexHandler {
-    typealias InboundIn = LatencyEntry // latency entry
+    typealias InboundIn = LatencyEntry
     typealias InboundOut = PingResponse
     typealias OutboundIn = HTTPOutboundIn
-    typealias OutboundOut = (UInt16, HTTPRequestHead) // seqNum, HTTP Request
+    typealias OutboundOut = (UInt16, HTTPRequestHead) // sequence number, HTTP Request
     
     private let url: URL
     private let configuration: LCLPing.Configuration
