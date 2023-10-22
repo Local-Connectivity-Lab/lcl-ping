@@ -10,7 +10,7 @@ import Foundation
 public enum PingError: Error {
     
     case operationNotSupported(String)
-    
+    case unknownError(String)
     case invalidConfiguration(String)
     case hostConnectionError(Error)
     case sendPingFailed(Error)
@@ -19,6 +19,37 @@ public enum PingError: Error {
     case invalidICMPResponse
     case invalidIPv4URL
     case invalidIPv6URL
+    
+    
+    case icmpDestinationNetworkUnreachable
+    case icmpDestinationHostUnreachable
+    case icmpDestinationProtocoltUnreachable
+    case icmpDestinationPortUnreachable
+    case icmpFragmentationRequired
+    case icmpSourceRouteFailed
+    case icmpUnknownDestinationNetwork
+    case icmpUnknownDestinationHost
+    case icmpSourceHostIsolated
+    case icmpNetworkAdministrativelyProhibited
+    case icmpHostAdministrativelyProhibited
+    case icmpNetworkUnreachableForToS
+    case icmpHostUnreachableForToS
+    case icmpCommunicationAdministrativelyProhibited
+    case icmpHostPrecedenceViolation
+    case icmpPrecedenceCutoffInEffect
+    case icmpRedirectDatagramForNetwork
+    case icmpRedirectDatagramForHost
+    case icmpRedirectDatagramForTosAndNetwork
+    case icmpRedirectDatagramForTosAndHost
+    case icmpRouterAdvertisement
+    case icmpRouterDiscoverySelectionSolicitation
+    case icmpTTLExpiredInTransit
+    case icmpFragmentReassemblyTimeExceeded
+    case icmpPointerIndicatesError
+    case icmpMissingARequiredOption
+    case icmpBadLength
+    
+    
     
     case invalidHTTPSession
     case httpRequestFailed(Int)

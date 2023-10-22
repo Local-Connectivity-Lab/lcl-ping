@@ -85,9 +85,96 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         
         let icmpResponse = self.unwrapInboundIn(data)
         
-        // TODO: need to handle more response type
-        precondition(icmpResponse.type == ICMPType.EchoReply.rawValue, "Not ICMP Reply. Expected \(ICMPType.EchoReply.rawValue). But received \(icmpResponse.type)")
-        precondition(icmpResponse.code == 0)
+        let type = icmpResponse.type
+        let code = icmpResponse.code
+        switch (type, code) {
+        case (ICMPType.EchoReply.rawValue, 0):
+            break
+        case (3,0):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpDestinationNetworkUnreachable)))
+            return
+        case (3,1):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpDestinationHostUnreachable)))
+            return
+        case (3,2):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpDestinationProtocoltUnreachable)))
+            return
+        case (3,3):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpDestinationPortUnreachable)))
+            return
+        case (3,4):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpFragmentationRequired)))
+            return
+        case (3,5):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpSourceRouteFailed)))
+            return
+        case (3,6):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpUnknownDestinationNetwork)))
+            return
+        case (3,7):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpUnknownDestinationHost)))
+            return
+        case (3,8):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpSourceHostIsolated)))
+            return
+        case (3,9):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpNetworkAdministrativelyProhibited)))
+            return
+        case (3,10):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpHostAdministrativelyProhibited)))
+            return
+        case (3,11):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpNetworkUnreachableForToS)))
+            return
+        case (3,12):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpHostUnreachableForToS)))
+            return
+        case (3,13):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpCommunicationAdministrativelyProhibited)))
+            return
+        case (3,14):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpHostPrecedenceViolation)))
+            return
+        case (3,15):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpPrecedenceCutoffInEffect)))
+            return
+        case (5,0):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpRedirectDatagramForNetwork)))
+            return
+        case (5,1):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpRedirectDatagramForHost)))
+            return
+        case (5,2):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpRedirectDatagramForTosAndNetwork)))
+            return
+        case (5,3):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpRedirectDatagramForTosAndHost)))
+            return
+        case (9,0):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpRouterAdvertisement)))
+            return
+        case (10,0):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpRouterDiscoverySelectionSolicitation)))
+            return
+        case (11,0):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpTTLExpiredInTransit)))
+            return
+        case (11,1):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpFragmentReassemblyTimeExceeded)))
+            return
+        case (12,0):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpPointerIndicatesError)))
+            return
+        case (12,1):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpMissingARequiredOption)))
+            return
+        case (12,2):
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpBadLength)))
+            return
+        default:
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.unknownError("Received unknown ICMP type (\(type) and ICMP code (\(code)"))))
+            return
+        }
         
         let sequenceNum = icmpResponse.sequenceNum
         let identifier = icmpResponse.idenifier
