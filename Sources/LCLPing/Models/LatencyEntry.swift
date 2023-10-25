@@ -27,7 +27,7 @@ extension LatencyEntry {
     internal enum Status {
         case finished
         case timeout
-        case error(UInt)
+        case error(UInt) // status code (similar to HTTP status code)
         case waiting
     }
 }

@@ -31,13 +31,14 @@ internal struct HTTPPing: Pingable {
     }
 
     private(set) var pingStatus: PingState = .ready
-
     private var pingSummary: PingSummary?
     private let httpOptions: LCLPing.Configuration.HTTPOptions
     
     internal init(options: LCLPing.Configuration.HTTPOptions) {
         self.httpOptions = options
     }
+    
+    // TODO: implement non-async version
     
     mutating func start(with configuration: LCLPing.Configuration) async throws {
         let addr: String
@@ -72,6 +73,7 @@ internal struct HTTPPing: Pingable {
             try! eventLoopGroup.syncShutdownGracefully()
         }
         
+        pingStatus = .running
         do {
             let pingResponses = try await withThrowingTaskGroup(of: PingResponse.self, returning: [PingResponse].self) { group in
                 var pingResponses: [PingResponse] = []
@@ -129,11 +131,11 @@ internal struct HTTPPing: Pingable {
             switch pingStatus {
             case .running:
                 pingStatus = .finished
-                pingSummary = summarizePingResponse(pingResponses, host: host)
+                fallthrough
             case .stopped:
                 pingSummary = summarizePingResponse(pingResponses, host: host)
             case .finished, .ready, .error:
-                fatalError("wrong state")
+                fatalError("wrong state: \(pingStatus)")
             }
 
             if let pingSummary = pingSummary {

@@ -18,6 +18,23 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
     typealias OutboundIn = HTTPOutboundIn
     typealias OutboundOut = (UInt16, HTTPRequestHead) // sequence number, HTTP Request
     
+    private enum State {
+        case operational
+        case error
+        case inactive
+        
+        var isOperational: Bool {
+            switch self {
+            case .operational:
+                return true
+            case .error, .inactive:
+                return false
+            }
+        }
+    }
+    
+    private var state: State
+    
     private let url: URL
     private let configuration: LCLPing.Configuration
     private let httpOptions: LCLPing.Configuration.HTTPOptions
@@ -26,20 +43,50 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
         self.url = url
         self.httpOptions = httpOptions
         self.configuration = configuration
+        self.state = .inactive
+    }
+    
+    func channelActive(context: ChannelHandlerContext) {
+        switch self.state {
+        case .operational:
+            print("[\(self)]: Channel already active")
+            break
+        case .error:
+            assertionFailure("[\(self)] in an incorrect state: \(state)")
+        case .inactive:
+            print("[\(self)]: Channel active")
+            self.state = .operational
+        }
+    }
+    
+    func channelInactive(context: ChannelHandlerContext) {
+        switch self.state {
+        case .operational:
+            self.state = .inactive
+            print("[\(self)]: Channel inactive")
+        case .error:
+            break
+        case .inactive:
+            assertionFailure("[\(self)] received inactive signal when channel is already in inactive state.")
+        }
     }
     
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
-//        print("[write] enter")
+        guard self.state.isOperational else {
+            let pingResponse: PingResponse = .error(ChannelError.ioOnClosedChannel)
+            context.fireChannelRead(self.wrapInboundOut(pingResponse))
+            return
+        }
+        
         let sequenceNumber = self.unwrapOutboundIn(data)
-//        print("seq number = \(sequenceNumber)")
         var header = HTTPHeaders(self.httpOptions.httpHeaders.map { ($0.key, $0.value) })
         if !self.httpOptions.httpHeaders.keys.contains("Host"), let host = self.url.host {
             header.add(name: "Host", value: host)
         }
         
-        print("Header is \(header)")
-        print("url is \(self.url.absoluteString)")
-        print("path is \(url.path)")
+//        print("Header is \(header)")
+//        print("url is \(self.url.absoluteString)")
+//        print("path is \(url.path)")
         
         let requestHead = HTTPRequestHead(version: .http1_1, method: .GET, uri: url.path.isEmpty ? "/" : url.path, headers: header)
         context.write(self.wrapOutboundOut((sequenceNumber, requestHead)), promise: promise)
@@ -49,10 +96,12 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         print("[HTTPDuplexer] read")
         let latencyEntry = self.unwrapInboundIn(data)
-        print("[HTTPDuplexer] decode done")
+        guard self.state.isOperational else {
+            print("drop data: \(data) because channel is not in operational state")
+            return
+        }
         
         switch latencyEntry.latencyStatus {
-            
         case .finished:
             let latency = (latencyEntry.responseEnd - latencyEntry.requestStart) * 1000.0 - latencyEntry.serverTiming
             context.fireChannelRead(self.wrapInboundOut(.ok(latencyEntry.seqNum, latency, Date.currentTimestamp)))
@@ -61,6 +110,7 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
         case .error(let statusCode):
             switch statusCode {
             case 200...299:
+                self.state = .error
                 fatalError("HTTP Handler in some error state while the status code is \(statusCode). Please report this to the developer")
             case 300...399:
                 context.fireChannelRead(self.wrapInboundOut(.error(PingError.httpRedirect)))
@@ -72,9 +122,21 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
                 context.fireChannelRead(self.wrapInboundOut(.error(PingError.httpUnknownStatus(statusCode))))
             }
         case .waiting:
+            self.state = .error
             fatalError("Latency Entry should not be in waiting state.")
         }
         
+        context.channel.close(mode: .all, promise: nil)
+    }
+    
+    func errorCaught(context: ChannelHandlerContext, error: Error) {
+        guard self.state.isOperational else {
+            print("already in error state. ignore error \(error)")
+            return
+        }
+        self.state = .error
+        let pingResponse: PingResponse = .error(error)
+        context.fireChannelRead(self.wrapInboundOut(pingResponse))
         context.channel.close(mode: .all, promise: nil)
     }
 }
@@ -85,6 +147,23 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
     typealias OutboundIn = (UInt16, HTTPRequestHead) // seqNum, HTTP Request
     typealias OutboundOut = HTTPClientRequestPart
     
+    private enum State {
+        case operational
+        case error
+        case inactive
+        
+        var isOperational: Bool {
+            switch self {
+            case .operational:
+                return true
+            case .error, .inactive:
+                return false
+            }
+        }
+    }
+    
+    private var state: State
+    
     private let configuration: LCLPing.Configuration
     private let httpOptions: LCLPing.Configuration.HTTPOptions
     private var latencyEntry: LatencyEntry?
@@ -94,10 +173,42 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
         self.configuration = configuration
         self.httpOptions = httpOptions
         self.timerScheduler = TimerScheduler()
+        self.state = .inactive
+    }
+    
+    func channelActive(context: ChannelHandlerContext) {
+        switch self.state {
+        case .operational:
+            break
+        case .error:
+            assertionFailure("[\(self)]: in an incorrect state: \(self.state)")
+        case .inactive:
+            print("[\(self)]: Channel active")
+            context.fireChannelActive()
+            self.state = .operational
+        }
+    }
+    
+    func channelInactive(context: ChannelHandlerContext) {
+        switch self.state {
+        case .operational:
+            print("[\(self)]: Channel inactive")
+            context.fireChannelInactive()
+            self.state = .inactive
+        case .error:
+            break
+        case .inactive:
+            assertionFailure("[\(self)]: received inactive signal when channel is already in inactive state.")
+        }
     }
     
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         let (sequenceNum, httpRequest) = self.unwrapOutboundIn(data)
+        guard self.state.isOperational else {
+            context.fireErrorCaught(ChannelError.ioOnClosedChannel)
+            return
+        }
+        
         var le = LatencyEntry(seqNum: sequenceNum)
         le.requestStart = Date.currentTimestamp
         self.latencyEntry = le
@@ -114,26 +225,28 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
     }
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-//        print("[HTTPTracingHandler] read")
+        guard self.state.isOperational else {
+            print("drop data: \(data) because channel is not in operational state")
+            return
+        }
+        
         let httpResponse: HTTPClientResponsePart = self.unwrapInboundIn(data)
         guard var le = self.latencyEntry else {
-            fatalError("No corresponding latency entry found")
+            self.state = .error
+            context.fireErrorCaught(PingError.httpNoMatchingRequest)
+            return
         }
 
         switch httpResponse {
         case .head(let responseHead):
-//            print("Received status: \(responseHead)")
             let statusCode = responseHead.status.code
             switch statusCode {
             case 200...299:
                 le.responseStart = Date.currentTimestamp
                 if httpOptions.useServerTiming {
-//                    print("use server timing")
                     le.serverTiming = responseHead.headers.contains(name: "Server-Timing") ? matchServerTiming(field: responseHead.headers.first(name: "Server-Timing")!) : estimatedServerTiming
                 }
-            case 300...399,
-                400...499,
-                500...599:
+            case 300...599:
                 le.latencyStatus = .error(statusCode)
             default:
                 le.latencyStatus = .error(statusCode)
@@ -141,16 +254,25 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
         case .body(_):
             break
         case .end:
-            print("finish reading response")
-            
             guard var le = self.latencyEntry else {
-                fatalError("Latency Entry should not be empty")
+                self.state = .error
+                context.fireErrorCaught(PingError.httpNoMatchingRequest)
+                return
             }
             le.responseEnd = Date.currentTimestamp
             le.latencyStatus = .finished
             context.fireChannelRead(self.wrapInboundOut(le))
             self.latencyEntry = nil
         }
+    }
+    
+    func errorCaught(context: ChannelHandlerContext, error: Error) {
+        guard self.state.isOperational else {
+            print("already in error state. ignore error \(error)")
+            return
+        }
+        self.state = .error
+        context.fireErrorCaught(error)
     }
 }
 
