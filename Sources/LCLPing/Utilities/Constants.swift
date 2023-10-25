@@ -8,3 +8,4 @@
 import Foundation
 
 let estimatedServerTiming: Double = 15
+let LOGGER_LABEL = "com.lcl.lclping"

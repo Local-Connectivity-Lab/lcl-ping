@@ -1,7 +1,12 @@
+import Logging
+
+fileprivate var logger: Logger = Logger(label: LOGGER_LABEL)
+
 public struct LCLPing {
     
     public init() {
         ping = nil
+        logger.logLevel = .debug
     }
     
     var ping: Pingable?
@@ -16,22 +21,25 @@ public struct LCLPing {
     
     public mutating func start(configuration: LCLPing.Configuration) async throws {
         // TODO: validate configuration
-        print("START")
+        logger.info("START")
+        logger.debug("Using configuration \(configuration)")
         let type = configuration.type
         switch type {
         case .icmp:
+            logger.debug("start ICMP Ping ...")
             ping = ICMPPing()
         case .http(let options):
+            logger.debug("start HTTP Ping with options \(options)")
             ping = HTTPPing(options: options)
         }
         
         try await ping?.start(with: configuration)
-        print("DONE!")
+        logger.info("DONE")
     }
     
     public mutating func stop() {
-        print("try to stop ping")
+        logger.debug("try to stop ping")
         ping?.stop()
-        print("ping stopped")
+        logger.debug("ping stopped")
     }
 }
