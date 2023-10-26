@@ -49,12 +49,12 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
     func channelActive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
-            print("[\(self)]: Channel already active")
+            logger.debug("[\(#function)]: Channel already active")
             break
         case .error:
-            assertionFailure("[\(self)] in an incorrect state: \(state)")
+            assertionFailure("[\(#function)] in an incorrect state: \(state)")
         case .inactive:
-            print("[\(self)]: Channel active")
+            logger.debug("[\(#function)]: Channel active")
             self.state = .operational
         }
     }
@@ -63,18 +63,18 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
         switch self.state {
         case .operational:
             self.state = .inactive
-            print("[\(self)]: Channel inactive")
+            logger.debug("[\(#function)]: Channel inactive")
         case .error:
             break
         case .inactive:
-            assertionFailure("[\(self)] received inactive signal when channel is already in inactive state.")
+            logger.error("[\(#function)]: received inactive signal when channel is already in inactive state.")
+            assertionFailure("[\(#function)]: received inactive signal when channel is already in inactive state.")
         }
     }
     
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         guard self.state.isOperational else {
-            let pingResponse: PingResponse = .error(ChannelError.ioOnClosedChannel)
-            context.fireChannelRead(self.wrapInboundOut(pingResponse))
+            context.fireChannelRead(self.wrapInboundOut(.error(ChannelError.ioOnClosedChannel)))
             return
         }
         
@@ -84,20 +84,18 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
             header.add(name: "Host", value: host)
         }
         
-//        print("Header is \(header)")
-//        print("url is \(self.url.absoluteString)")
-//        print("path is \(url.path)")
+        logger.debug("Header is \(header)")
+        logger.debug("url is \(self.url.absoluteString)")
+        logger.debug("path is \(url.path)")
         
         let requestHead = HTTPRequestHead(version: .http1_1, method: .GET, uri: url.path.isEmpty ? "/" : url.path, headers: header)
         context.write(self.wrapOutboundOut((sequenceNumber, requestHead)), promise: promise)
-        print("[write] content written")
     }
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        print("[HTTPDuplexer] read")
         let latencyEntry = self.unwrapInboundIn(data)
         guard self.state.isOperational else {
-            print("drop data: \(data) because channel is not in operational state")
+            logger.debug("[\(#function)]: drop data: \(data) because channel is not in operational state")
             return
         }
         
@@ -127,11 +125,12 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
         }
         
         context.channel.close(mode: .all, promise: nil)
+        logger.debug("[\(#function)]: Closing all channels ...")
     }
     
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         guard self.state.isOperational else {
-            print("already in error state. ignore error \(error)")
+            logger.debug("already in error state. ignore error \(error)")
             return
         }
         self.state = .error
@@ -181,9 +180,10 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
         case .operational:
             break
         case .error:
-            assertionFailure("[\(self)]: in an incorrect state: \(self.state)")
+            logger.error("[\(#function)]: in an incorrect state: \(self.state)")
+            assertionFailure("[\(#function)]: in an incorrect state: \(self.state)")
         case .inactive:
-            print("[\(self)]: Channel active")
+            logger.debug("[\(#function)]: Channel active")
             context.fireChannelActive()
             self.state = .operational
         }
@@ -192,19 +192,21 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
     func channelInactive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
-            print("[\(self)]: Channel inactive")
+            logger.debug("[\(#function)]: Channel inactive")
             context.fireChannelInactive()
             self.state = .inactive
         case .error:
             break
         case .inactive:
-            assertionFailure("[\(self)]: received inactive signal when channel is already in inactive state.")
+            logger.error("[\(#function)]: received inactive signal when channel is already in inactive state.")
+            assertionFailure("[\(#function)]: received inactive signal when channel is already in inactive state.")
         }
     }
     
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         let (sequenceNum, httpRequest) = self.unwrapOutboundIn(data)
         guard self.state.isOperational else {
+            logger.debug("[\(#function)]: error: IO on closed channel")
             context.fireErrorCaught(ChannelError.ioOnClosedChannel)
             return
         }
@@ -217,6 +219,7 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
         
         timerScheduler.schedule(delay: self.configuration.timeout, key: sequenceNum) { [weak self] in
             if let self = self, var le = self.latencyEntry {
+                logger.debug("[\(#function)]: packet #\(le.seqNum) timed out")
                 le.latencyStatus = .timeout
                 context.fireChannelRead(self.wrapInboundOut(le))
                 return
@@ -226,7 +229,7 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         guard self.state.isOperational else {
-            print("drop data: \(data) because channel is not in operational state")
+            logger.debug("[\(#function)]: drop data: \(data) because channel is not in operational state")
             return
         }
         
@@ -268,7 +271,7 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
     
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         guard self.state.isOperational else {
-            print("already in error state. ignore error \(error)")
+            logger.debug("already in error state. ignore error \(error)")
             return
         }
         self.state = .error
@@ -396,7 +399,7 @@ extension HTTPHandler {
                     return .failure(.httpRequestFailed(httpResponse.statusCode))
                 }
             } catch {
-                print("Unable to connect to host: \(error)")
+                logger.debug("Unable to connect to host: \(error)")
                 return .failure(.hostConnectionError(error))
             }
         } else {
@@ -449,10 +452,10 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
             let urlError = error as! URLError
             switch urlError.code {
             case .timedOut:
-                print("task \(taskIdentifier) times out")
+                logger.debug("task \(taskIdentifier) times out")
                 self.continuation?.yield(.timeout(taskToSeqNum[taskIdentifier]!))
             default:
-                print("task \(taskIdentifier) has error: \(urlError.localizedDescription)")
+                logger.debug("task \(taskIdentifier) has error: \(urlError.localizedDescription)")
                 self.continuation?.yield(.error(urlError))
             }
             
@@ -460,7 +463,7 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
             // no error, let's check the data received
             guard let response = task.response else {
                 self.continuation?.yield(.error(PingError.httpNoResponse))
-                print("request #\(taskIdentifier) doesnt have response")
+                logger.debug("request #\(taskIdentifier) doesnt have response")
                 return
             }
             
@@ -503,7 +506,7 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
         }
         
         guard let response = metric.response else {
-            print("no response. maybe timeout")
+            logger.debug("no response. maybe timeout")
             return
         }
 

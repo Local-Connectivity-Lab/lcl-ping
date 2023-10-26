@@ -10,7 +10,7 @@ import Foundation
 @_spi(AsyncChannel) import NIOPosix
 import NIO
 import NIOPosix
-import Logging
+
 
 typealias ICMPOutboundIn = (UInt16, UInt16)
 
@@ -33,7 +33,6 @@ internal struct ICMPPing: Pingable {
     private var asyncChannel: NIOAsyncChannel<PingResponse, ICMPOutboundIn>?
     private var pingSummary: PingSummary?
     private var task: Task<(), Error>?
-    private let logger: Logger = Logger(label: "com.lcl.lclping")
     
     internal init() { }
     
@@ -78,7 +77,7 @@ internal struct ICMPPing: Pingable {
         
         precondition(pingStatus == .ready, "ping status is \(pingStatus)")
         pingStatus = .running
-        print(asyncChannel.channel.pipeline.debugDescription)
+        logger.debug("pipeline is \(asyncChannel.channel.pipeline.debugDescription)")
         
         task = Task(priority: .background) { [asyncChannel] in
             var cnt: UInt16 = 0
@@ -87,7 +86,7 @@ internal struct ICMPPing: Pingable {
                     if cnt >= 1 {
                         try await Task.sleep(nanoseconds: configuration.interval.nanosecond)
                     }
-                    print("sending #\(cnt)")
+                    logger.debug("sending packet #\(cnt)")
                     try await asyncChannel.outboundWriter.write((ICMPPingIdentifier, cnt))
                     cnt += 1
                 }
@@ -103,7 +102,7 @@ internal struct ICMPPing: Pingable {
         var pingResponses: [PingResponse] = []
 
         for try await pingResponse in asyncChannel.inboundStream {
-            print("received ping response: \(pingResponse)")
+            logger.debug("received ping response: \(pingResponse)")
             pingResponses.append(pingResponse)
         }
         
@@ -134,13 +133,13 @@ internal struct ICMPPing: Pingable {
     mutating func stop() {
         switch pingStatus {
         case .ready, .running:
-            print("stopping the icmp ping")
+            logger.debug("stopping the icmp ping")
             self.task?.cancel()
             self.pingStatus = .stopped
             self.asyncChannel?.channel.close(mode: .all, promise: nil)
-            print("icmp ping stopped")
+            logger.debug("icmp ping stopped")
         case .error, .stopped, .finished:
-            print("already in end state. no need to stop")
+            logger.debug("already in end state. no need to stop")
         }
     }
 }

@@ -54,6 +54,8 @@ internal struct HTTPPing: Pingable {
             throw PingError.operationNotSupported("IPv6 currently not supported")
         }
         
+        logger.debug("[\(#function)]: using address: \(addr), port: \(port)")
+        
         guard let url = URL(string: addr) else {
             throw PingError.invalidIPv4URL
         }
@@ -80,7 +82,7 @@ internal struct HTTPPing: Pingable {
                 
                 for cnt in 0..<configuration.count {
                     if pingStatus == .stopped {
-                        print("group task is cancelled")
+                        logger.debug("group task is cancelled")
                         group.cancelAll()
                         return pingResponses
                     }
@@ -122,6 +124,7 @@ internal struct HTTPPing: Pingable {
                 }
                 
                 if pingStatus == .stopped {
+                    logger.debug("[\(#function)]: ping is cancelled. Cancel all other tasks in the task group")
                     group.cancelAll()
                 }
                 
@@ -176,7 +179,7 @@ internal struct HTTPPing: Pingable {
         case .ready, .running:
             pingStatus = .stopped
         case .error, .stopped, .finished:
-            print("already in ending state. no need to stop")
+            logger.debug("already in ending state. no need to stop")
         }
     }
 }

@@ -31,6 +31,7 @@ internal struct TimerScheduler {
     ///     - operation: the operation that will be invoked when the timer is fired
     mutating func schedule(delay: Double, key: UInt16, operation: @escaping () -> Void) {
         if containsKey(key) {
+            logger.debug("[\(#function)]: already scheduled a timer for packet #\(key). Ignore scheduling request")
             return
         }
         
@@ -55,6 +56,7 @@ internal struct TimerScheduler {
     ///     - key: the key whose associated timer will be cancelled
     mutating func cancel(key: UInt16) {
         if let timer = self.tracker.removeValue(forKey: key) {
+            logger.debug("[\(#function)]: removed timer for packet #\(key)")
             timer.cancel()
         }
     }

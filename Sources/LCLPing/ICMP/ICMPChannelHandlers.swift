@@ -10,7 +10,7 @@ import NIO
 import NIOCore
 
 
-// TODO: add logging
+
 // TODO: support version without swift concurrency
 internal final class ICMPDuplexer: ChannelDuplexHandler {
     typealias InboundIn = ICMPHeader
@@ -55,8 +55,8 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
     
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         guard self.state.isOperational else {
-            let pingResponse: PingResponse = .error(ChannelError.ioOnClosedChannel)
-            context.fireChannelRead(self.wrapInboundOut(pingResponse))
+            logger.error("[\(#function)]: Error: IO on closed channel")
+            context.fireChannelRead(self.wrapInboundOut(.error(ChannelError.ioOnClosedChannel)))
             return
         }
         
@@ -70,16 +70,16 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         
         self.timerScheduler.schedule(delay: self.configuration.timeout, key: sequenceNum) { [weak self] in
             if let self = self, !self.seqToResponse.keys.contains(sequenceNum) {
+                logger.debug("[\(#function)]: packet #\(sequenceNum) timed out")
                 self.seqToResponse[sequenceNum] = nil
-                let pingResponse: PingResponse = .timeout(sequenceNum)
-                context.fireChannelRead(self.wrapInboundOut(pingResponse))
+                context.fireChannelRead(self.wrapInboundOut(.timeout(sequenceNum)))
             }
         }
     }
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         guard self.state.isOperational else {
-            print("drop data: \(data) because channel is not in operational state")
+            logger.debug("[\(#function)]: drop data: \(data) because channel is not in operational state")
             return
         }
         
@@ -188,6 +188,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         }
         
         guard let icmpRequest = self.seqToRequest[sequenceNum] else {
+            logger.error("[\(#function)]: Unable to find matching request with sequence number \(sequenceNum)")
             fatalError("Unable to find matching request with sequence number \(sequenceNum)")
         }
         
@@ -202,6 +203,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         context.fireChannelRead(self.wrapInboundOut(pingResponse))
 
         if self.seqToRequest.count == self.configuration.count && self.seqToResponse.count == self.configuration.count {
+            logger.debug("Ping finished. Closing all channels")
             context.close(mode: .all, promise: nil)
         }
     }
@@ -209,12 +211,13 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
     func channelActive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
-            print("[\(self)]: Channel already active")
+            logger.debug("[\(#function)]: Channel already active")
             break
         case .error:
-            assertionFailure("[\(self)] in an incorrect state: \(state)")
+            logger.error("[\(#function)]: in an incorrect state: \(state)")
+            assertionFailure("[\(#function)]: in an incorrect state: \(state)")
         case .inactive:
-            print("[\(self)]: Channel active")
+            logger.debug("[\(#function)]: Channel active")
             self.state = .operational
         }
     }
@@ -226,17 +229,18 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
             self.seqToRequest.removeAll()
             self.seqToResponse.removeAll()
             self.timerScheduler.reset()
-            print("[\(self)]: Channel inactive")
+            logger.debug("[\(#function)]: Channel inactive")
         case .error:
             break
         case .inactive:
-            assertionFailure("[\(self)] received inactive signal when channel is already in inactive state.")
+            logger.error("[\(#function)] received inactive signal when channel is already in inactive state.")
+            assertionFailure("[\(#function)] received inactive signal when channel is already in inactive state.")
         }
     }
     
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         guard self.state.isOperational else {
-            print("already in error state. ignore error \(error)")
+            logger.debug("already in error state. ignore error \(error)")
             return
         }
         self.state = .error
@@ -271,12 +275,13 @@ internal final class IPDecoder: ChannelInboundHandler {
     func channelActive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
-            print("[\(self)]: Channel already active")
+            logger.debug("[\(#function)]: Channel already active")
             break
         case .error:
-            assertionFailure("[\(self)] in an incorrect state: \(state)")
+            logger.error("[\(#function)] in an incorrect state: \(state)")
+            assertionFailure("[\(#function)] in an incorrect state: \(state)")
         case .inactive:
-            print("[\(self)]: Channel active")
+            logger.debug("[\(#function)]: Channel active")
             context.fireChannelActive()
             self.state = .operational
         }
@@ -285,19 +290,20 @@ internal final class IPDecoder: ChannelInboundHandler {
     func channelInactive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
-            print("[\(self)]: Channel inactive")
+            logger.debug("[\(#function)]: Channel inactive")
             context.fireChannelInactive()
             self.state = .inactive
         case .error:
             break
         case .inactive:
-            assertionFailure("[\(self)]: received inactive signal when channel is already in inactive state.")
+            logger.debug("[\(#function)]: received inactive signal when channel is already in inactive state.")
+            assertionFailure("[\(#function)]: received inactive signal when channel is already in inactive state.")
         }
     }
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         guard self.state.isOperational else {
-            print("drop data: \(data) because channel is not in operational state")
+            logger.debug("[\(#function)]: drop data: \(data) because channel is not in operational state")
             return
         }
         
@@ -317,7 +323,7 @@ internal final class IPDecoder: ChannelInboundHandler {
     
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         guard self.state.isOperational else {
-            print("already in error state. ignore error \(error)")
+            logger.debug("already in error state. ignore error \(error)")
             return
         }
         
@@ -350,12 +356,13 @@ internal final class ICMPDecoder: ChannelInboundHandler {
     func channelActive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
-            print("[\(self)]: Channel already active")
+            logger.debug("[\(#function)]: Channel already active")
             break
         case .error:
-            assertionFailure("[\(self)] in an incorrect state: \(state)")
+            logger.error("[\(#function)] in an incorrect state: \(state)")
+            assertionFailure("[\(#function)] in an incorrect state: \(state)")
         case .inactive:
-            print("[\(self)]: Channel active")
+            logger.debug("[\(#function)]: Channel active")
             context.fireChannelActive()
             self.state = .operational
         }
@@ -364,19 +371,20 @@ internal final class ICMPDecoder: ChannelInboundHandler {
     func channelInactive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
-            print("[\(self)]: Channel inactive")
+            logger.debug("[\(#function)]: Channel inactive")
             context.fireChannelInactive()
             self.state = .inactive
         case .error:
             break
         case .inactive:
-            assertionFailure("[\(self)] received inactive signal when channel is already in inactive state.")
+            logger.error("[\(#function)] received inactive signal when channel is already in inactive state.")
+            assertionFailure("[\(#function)] received inactive signal when channel is already in inactive state.")
         }
     }
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         guard self.state.isOperational else {
-            print("drop data: \(data) because channel is not in operational state")
+            logger.debug("drop data: \(data) because channel is not in operational state")
             return
         }
         
@@ -387,7 +395,7 @@ internal final class ICMPDecoder: ChannelInboundHandler {
     
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         guard self.state.isOperational else {
-            print("already in error state. ignore error \(error)")
+            logger.debug("already in error state. ignore error \(error)")
             return
         }
         
