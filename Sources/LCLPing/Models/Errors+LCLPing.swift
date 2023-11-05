@@ -8,7 +8,6 @@
 import Foundation
 
 public enum PingError: Error {
-    
     case operationNotSupported(String)
     case unknownError(String)
     case invalidConfiguration(String)
@@ -64,4 +63,8 @@ public enum PingError: Error {
     case httpMissingSchema
     case httpUnableToEstablishTLSConnection
     case httpMissingResult
+}
+
+public enum RuntimeError: Error {
+    case insufficientBytes(String)
 }
