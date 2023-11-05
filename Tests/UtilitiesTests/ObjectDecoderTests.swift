@@ -72,7 +72,6 @@ final class ObjectDecoderTests: XCTestCase {
     }
     
     func testSizeofPrimitiveTypes() {
-        
         // Int
         XCTAssertEqual(sizeof(Int8.self), 1)
         XCTAssertEqual(sizeof(Int16.self), 2)
