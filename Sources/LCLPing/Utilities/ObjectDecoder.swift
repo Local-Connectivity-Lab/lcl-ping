@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import NIO
 import NIOCore
 
 
@@ -17,7 +16,7 @@ import NIOCore
 /// - Parameters:
 ///     - data: input byte buffer that will be decoded
 /// - Returns: decoded object of type `Out`
-func decodeByteBuffer<Out>(data: inout ByteBuffer) -> Out {
+func decodeByteBuffer<Out>(of: Out.Type, data: inout ByteBuffer) -> Out {
     let readLength = sizeof(Out.self)
     guard let buffer = data.readBytes(length: readLength) else {
         fatalError("Not enough bytes in the reponse message. Need \(readLength) bytes. But received \(data.readableBytes)")

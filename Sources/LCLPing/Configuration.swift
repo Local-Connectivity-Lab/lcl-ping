@@ -41,34 +41,27 @@ extension LCLPing {
             }
         }
         
-        public init(type: PingType, endpoint: IP, count: UInt16 = 10, interval: TimeInterval = 1, ttl: UInt16 = 64, timeout: TimeInterval = 1) {
+        public init(type: PingType, endpoint: IP) {
             self.type = type
             self.endpoint = endpoint
-            self.count = count
-            self.interval = interval
-            self.timeToLive = ttl
-            self.timeout = timeout
         }
         
         /// The mechanism that LCLPing will use to ping the target host
-        let type: PingType
+        public var type: PingType
         
         /// The target host that LCLPing will send the Ping request to
-        let endpoint: IP
+        public var endpoint: IP
         
-        /// Total number of packets sent
-        let count: UInt16
+        /// Total number of packets sent. Default to 10 times.
+        public var count: UInt16 = 10
         
-        /// The wait time, in second, between sending consecutive packet
-        let interval: TimeInterval
+        /// The wait time, in second, between sending consecutive packet. Default is 1s.
+        public var interval: TimeInterval = 1
         
-        /// IP Time To Live for outgoing packets
-        let timeToLive: UInt16
+        /// IP Time To Live for outgoing packets. Default is 64.
+        public var timeToLive: UInt16 = 64
         
-        /// Time, in second, to wait for a reply for each packet sent
-        let timeout: TimeInterval
-//
-//        /// Option to output more information
-//        let verboseOutput: Bool
+        /// Time, in second, to wait for a reply for each packet sent. Default is 1s.
+        public var timeout: TimeInterval = 1
     }
 }

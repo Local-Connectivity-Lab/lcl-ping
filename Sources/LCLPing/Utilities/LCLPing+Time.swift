@@ -19,8 +19,11 @@ extension Date {
         }
     }
     
-    static func toDateString(timeInterval: TimeInterval) -> String {
+    static func toDateString(timeInterval: TimeInterval, timeZone: TimeZone? = nil) -> String {
         let formatter = DateFormatter()
+        if let timeZone = timeZone {
+            formatter.timeZone = timeZone
+        }
         formatter.dateFormat = "MM/dd/yyyy HH:mm:ss"
         
         let date = Date(timeIntervalSince1970: timeInterval)

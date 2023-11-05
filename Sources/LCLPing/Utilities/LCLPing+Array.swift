@@ -10,6 +10,10 @@ import Foundation
 
 extension Array where Element == PingResult {
     var avg: Double {
+        if isEmpty {
+            return 0.0
+        }
+
         let sum = reduce(0.0) { partialResult, pingResult in
             partialResult + pingResult.latency
         }

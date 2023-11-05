@@ -7,8 +7,8 @@
 
 import Foundation
 import NIO
-@_spi(AsyncChannel) import NIOCore
-@_spi(AsyncChannel) import NIOPosix
+import NIOCore
+import NIOPosix
 import NIOHTTP1
 import NIOSSL
 import Collections
@@ -42,7 +42,7 @@ internal struct HTTPPing: Pingable {
     
     mutating func start(with configuration: LCLPing.Configuration) async throws {
         let addr: String
-        let port: UInt16
+        var port: UInt16
         switch configuration.endpoint {
         case .ipv4(let address, .none):
             addr = address
@@ -70,10 +70,14 @@ internal struct HTTPPing: Pingable {
         
         let httpOptions = self.httpOptions
         let enableTLS = schema == "https"
+        port = enableTLS && port == 80 ? 443 : port
         let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         defer {
             try! eventLoopGroup.syncShutdownGracefully()
         }
+        
+        let resolvedAddress = try SocketAddress.makeAddressResolvingHost(host, port: Int(port))
+        print(resolvedAddress)
         
         pingStatus = .running
         do {
@@ -88,7 +92,7 @@ internal struct HTTPPing: Pingable {
                     }
 
                     group.addTask {
-                        let asyncChannel = try await ClientBootstrap(group: eventLoopGroup).connect(host: host, port: Int(port)) { channel in
+                        let asyncChannel = try await ClientBootstrap(group: eventLoopGroup).connect(to: resolvedAddress) { channel in
                             channel.eventLoop.makeCompletedFuture {
                                 if enableTLS {
                                     do {
@@ -108,9 +112,9 @@ internal struct HTTPPing: Pingable {
                             }
                         }
                         try await Task.sleep(nanoseconds: UInt64(cnt) * configuration.interval.nanosecond)
-                        try await asyncChannel.outboundWriter.write(cnt)
+                        try await asyncChannel.outbound.write(cnt)
                         
-                        var asyncItr = asyncChannel.inboundStream.makeAsyncIterator()
+                        var asyncItr = asyncChannel.inbound.makeAsyncIterator()
                         guard let next = try await asyncItr.next() else {
                             throw PingError.httpMissingResult
                         }
@@ -136,7 +140,7 @@ internal struct HTTPPing: Pingable {
                 pingStatus = .finished
                 fallthrough
             case .stopped:
-                pingSummary = summarizePingResponse(pingResponses, host: host)
+                pingSummary = summarizePingResponse(pingResponses, host: resolvedAddress)
             case .finished, .ready, .error:
                 fatalError("wrong state: \(pingStatus)")
             }

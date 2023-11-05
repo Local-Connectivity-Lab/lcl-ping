@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import NIOCore
 
 public struct PingSummary {
     let min: Double
@@ -18,9 +19,11 @@ public struct PingSummary {
     let totalCount: Int
     let timeout: Set<UInt16>
     let duplicates: Set<UInt16>
-    let ipAddress: String // TODO: support IPv4 and IPv6
+    let ipAddress: String
+    let port: Int
+    let `protocol`: CInt
 }
 
 extension PingSummary {
-    static let empty: PingSummary = .init(min: .zero, max: .zero, avg: .zero, median: .zero, stdDev: .zero, jitter: .zero, details: [], totalCount: .zero, timeout: .init(), duplicates: .init(), ipAddress: "")
+    static let empty: PingSummary = .init(min: .zero, max: .zero, avg: .zero, median: .zero, stdDev: .zero, jitter: .zero, details: [], totalCount: .zero, timeout: .init(), duplicates: .init(), ipAddress: "", port: 0, protocol: 0)
 }

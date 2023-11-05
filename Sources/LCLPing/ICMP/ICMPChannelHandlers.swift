@@ -309,7 +309,7 @@ internal final class IPDecoder: ChannelInboundHandler {
         
         let addressedBuffer = self.unwrapInboundIn(data)
         var buffer = addressedBuffer.data
-        let ipv4Header: IPv4Header = decodeByteBuffer(data: &buffer)
+        let ipv4Header = decodeByteBuffer(of: IPv4Header.self, data: &buffer)
         let version = ipv4Header.versionAndHeaderLength & 0xF0
         precondition(version == 0x40, "Not valid IP Header. Need 0x40. But received \(version)")
         
@@ -389,7 +389,7 @@ internal final class ICMPDecoder: ChannelInboundHandler {
         }
         
         var buffer = self.unwrapInboundIn(data)
-        let icmpResponseHeader: ICMPHeader = decodeByteBuffer(data: &buffer)
+        let icmpResponseHeader = decodeByteBuffer(of: ICMPHeader.self, data: &buffer)
         context.fireChannelRead(self.wrapInboundOut(icmpResponseHeader))
     }
     

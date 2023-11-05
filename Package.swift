@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "LCLPing",
     platforms: [
-        .macOS(.v10_15)
+        .macOS(.v10_15), .iOS(.v14)
     ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.
@@ -17,7 +17,7 @@ let package = Package(
     dependencies: [
         // Dependencies declare other packages that this package depends on.
         .package(url: "https://github.com/apple/swift-nio-transport-services.git", from: "1.13.0"),
-        .package(url: "https://github.com/apple/swift-nio.git", branch: "main"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.61.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.3"),
         .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.25.0"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.0.4")
@@ -40,5 +40,9 @@ let package = Package(
         .testTarget(
             name: "LCLPingTests",
             dependencies: ["LCLPing"]),
+        .testTarget(
+            name: "UtilitiesTests",
+            dependencies: ["LCLPing"]
+        )
     ]
 )

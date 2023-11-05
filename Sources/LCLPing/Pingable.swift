@@ -9,7 +9,6 @@ import Foundation
 
 protocol Pingable {
     mutating func start(with configuration: LCLPing.Configuration) async throws
-//    mutating func start(with configuration: LCLPing.Configuration) throws
     
     // TODO: need to handle fallback of start(callback)
     

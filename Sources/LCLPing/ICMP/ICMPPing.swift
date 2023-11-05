@@ -6,8 +6,8 @@
 //
 
 import Foundation
-@_spi(AsyncChannel) import NIOCore
-@_spi(AsyncChannel) import NIOPosix
+import NIOCore
+import NIOPosix
 import NIO
 import NIOPosix
 
@@ -54,10 +54,13 @@ internal struct ICMPPing: Pingable {
             throw PingError.operationNotSupported("ICMP with IPv6 is currently not supported")
         }
         
+        let resolvedAddress = try SocketAddress.makeAddressResolvingHost(host, port: 0)
+        print(resolvedAddress)
+        
         do {
             asyncChannel = try await DatagramBootstrap(group: group)
                .protocolSubtype(.init(.icmp))
-               .connect(host: host, port: 0) { channel in
+               .connect(to: resolvedAddress) { channel in
                    channel.eventLoop.makeCompletedFuture {
                        try channel.pipeline.syncOperations.addHandlers(
                            [IPDecoder(), ICMPDecoder(), ICMPDuplexer(configuration: configuration)]
@@ -87,7 +90,7 @@ internal struct ICMPPing: Pingable {
                         try await Task.sleep(nanoseconds: configuration.interval.nanosecond)
                     }
                     logger.debug("sending packet #\(cnt)")
-                    try await asyncChannel.outboundWriter.write((ICMPPingIdentifier, cnt))
+                    try await asyncChannel.outbound.write((ICMPPingIdentifier, cnt))
                     cnt += 1
                 }
                 
@@ -101,7 +104,7 @@ internal struct ICMPPing: Pingable {
         
         var pingResponses: [PingResponse] = []
 
-        for try await pingResponse in asyncChannel.inboundStream {
+        for try await pingResponse in asyncChannel.inbound {
             logger.debug("received ping response: \(pingResponse)")
             pingResponses.append(pingResponse)
         }
@@ -109,7 +112,7 @@ internal struct ICMPPing: Pingable {
         let taskResult = await task?.result
         switch taskResult {
         case .success:
-            self.pingSummary = summarizePingResponse(pingResponses, host: host)
+            self.pingSummary = summarizePingResponse(pingResponses, host: resolvedAddress)
             
             precondition(pingStatus == .running || pingStatus == .stopped)
             
