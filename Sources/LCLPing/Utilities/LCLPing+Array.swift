@@ -36,4 +36,14 @@ extension Array where Element == PingResult {
         }
         
     }
+    
+    var stdDev: Double {
+        if isEmpty || count == 1 {
+            return 0.0
+        }
+        
+        return sqrt(map { ($0.latency - avg) * ($0.latency - avg) }.reduce(0.0, +) / Double(count - 1))
+    }
+    
+    
 }
