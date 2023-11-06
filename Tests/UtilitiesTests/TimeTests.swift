@@ -16,18 +16,29 @@ final class TimeTests: XCTestCase {
     let randomTime: TimeInterval = 1696182591
     let randomTimeWithDigits: TimeInterval = 99999.99
     
-    func testDateToString() {
+    func testZeroSecondToDateString() {
         XCTAssertEqual(Date.toDateString(timeInterval: zero, timeZone: utc), "01/01/1970 00:00:00")
+    }
+    
+    func testOneThousandSecondToDateString() {
         XCTAssertEqual(Date.toDateString(timeInterval: oneThousandSecond, timeZone: utc), "01/01/1970 00:16:40")
+    }
+    
+    func testRandomTimeToDateString() {
         XCTAssertEqual(Date.toDateString(timeInterval: randomTime, timeZone: utc), "10/01/2023 17:49:51")
         XCTAssertEqual(Date.toDateString(timeInterval: randomTimeWithDigits, timeZone: utc), "01/02/1970 03:46:39")
     }
     
-    func testToNanoSecond() {
+    func testZeroSecondToNanoSecond() {
         XCTAssertEqual(zero.nanosecond, 0)
+    }
+    
+    func testOneThousandSecondToNanoSecond() {
         XCTAssertEqual(oneThousandSecond.nanosecond, 1000000000000)
+    }
+    
+    func testRandomTimeToNanoSecond() {
         XCTAssertEqual(randomTime.nanosecond, 1696182591000000000)
         XCTAssertEqual(randomTimeWithDigits.nanosecond, 99999990000000)
     }
-
 }

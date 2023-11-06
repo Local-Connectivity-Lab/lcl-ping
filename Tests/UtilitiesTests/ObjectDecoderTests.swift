@@ -149,7 +149,7 @@ final class ObjectDecoderTests: XCTestCase {
         XCTAssertEqual(try decodeByteBuffer(of: Bool.self, data: &booleanBB), boolean)
     }
     
-    func testDecodeStruct() {
+    func testDecodeSimpleStruct() {
         var structA: A = A()
         var structABB = createByteBuffer(&structA)
         XCTAssertEqual(try decodeByteBuffer(of: A.self, data: &structABB), structA)

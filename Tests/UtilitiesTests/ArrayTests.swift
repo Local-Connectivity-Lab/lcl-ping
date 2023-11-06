@@ -10,135 +10,129 @@ import XCTest
 
 final class ArrayTests: XCTestCase {
     
+    private let empty: [PingResult] = []
+    private let single: [PingResult] = [.init(seqNum: 1, latency: 1.0, timestamp: 1)]
+    
+    private let basicEvenLength: [PingResult] = [
+        .init(seqNum: 0, latency: 1, timestamp: 0),
+        .init(seqNum: 1, latency: 2, timestamp: 1),
+        .init(seqNum: 2, latency: 3, timestamp: 2),
+        .init(seqNum: 3, latency: 4, timestamp: 3),
+        .init(seqNum: 4, latency: 5, timestamp: 4),
+        .init(seqNum: 5, latency: 6, timestamp: 5)
+    ]
+    
+    private let basicOddLength: [PingResult] = [
+        .init(seqNum: 0, latency: 1, timestamp: 0),
+        .init(seqNum: 2, latency: 3, timestamp: 2),
+        .init(seqNum: 4, latency: 5, timestamp: 4),
+    ]
+    
+    private let equalLatencyEvenLength: [PingResult] = [
+        .init(seqNum: 0, latency: 2, timestamp: 1),
+        .init(seqNum: 1, latency: 2, timestamp: 2),
+        .init(seqNum: 2, latency: 2, timestamp: 3),
+        .init(seqNum: 3, latency: 2, timestamp: 4)
+    ]
+    
+    private let equalLatencyOddLength: [PingResult] = [
+        .init(seqNum: 1, latency: 1, timestamp: 1),
+        .init(seqNum: 2, latency: 1, timestamp: 2),
+        .init(seqNum: 3, latency: 1, timestamp: 3)
+    ]
+    
+    private let reversedEvenLength: [PingResult] = [
+        .init(seqNum: 0, latency: 5, timestamp: 1),
+        .init(seqNum: 1, latency: 4, timestamp: 1),
+        .init(seqNum: 2, latency: 3, timestamp: 2),
+        .init(seqNum: 3, latency: 2, timestamp: 3),
+        .init(seqNum: 4, latency: 1, timestamp: 4),
+        .init(seqNum: 5, latency: 0, timestamp: 5)
+    ]
+    
+    private let reversedOddLength: [PingResult] = [
+        .init(seqNum: 1, latency: 4, timestamp: 1),
+        .init(seqNum: 2, latency: 3, timestamp: 2),
+        .init(seqNum: 3, latency: 2, timestamp: 3),
+        .init(seqNum: 4, latency: 1, timestamp: 4),
+        .init(seqNum: 5, latency: 0, timestamp: 5)
+    ]
+    
+    private let random: [PingResult] = [
+        .init(seqNum: 0, latency: 12, timestamp: 1),
+        .init(seqNum: 6, latency: 54, timestamp: 1),
+        .init(seqNum: 5, latency: 2, timestamp: 5),
+        .init(seqNum: 3, latency: 4, timestamp: 2),
+        .init(seqNum: 2, latency: 1, timestamp: 3),
+        .init(seqNum: 1, latency: 100, timestamp: 4)
+    ]
+    
     func testMedianEmptyArray() {
-        let a: [PingResult] = []
-        XCTAssertEqual(a.median, 0)
+        XCTAssertEqual(empty.median, 0)
     }
     
     func testAvgEmptyArray() {
-        let a: [PingResult] = []
-        XCTAssertEqual(a.avg, 0.0)
+        XCTAssertEqual(empty.avg, 0.0)
     }
     
-    func testAvgSingleItemArray() {
-        let a: [PingResult] = [.init(seqNum: 1, latency: 1.0, timestamp: 1)]
-        XCTAssertEqual(a.avg, 1.0)
+    func testAvgSingleItem() {
+        XCTAssertEqual(single.avg, 1.0)
     }
     
-    func testAvg() {
-        let basicEvenLength: [PingResult] = [
-            .init(seqNum: 0, latency: 1, timestamp: 0),
-            .init(seqNum: 1, latency: 2, timestamp: 1),
-            .init(seqNum: 2, latency: 3, timestamp: 2),
-            .init(seqNum: 3, latency: 4, timestamp: 3),
-            .init(seqNum: 4, latency: 5, timestamp: 4),
-            .init(seqNum: 5, latency: 6, timestamp: 5)
-        ]
-        
-        let basicOddLength: [PingResult] = [
-            .init(seqNum: 0, latency: 1, timestamp: 0),
-            .init(seqNum: 2, latency: 3, timestamp: 2),
-            .init(seqNum: 4, latency: 5, timestamp: 4),
-        ]
-        
-        let equalLatency: [PingResult] = [
-            .init(seqNum: 0, latency: 2, timestamp: 1),
-            .init(seqNum: 1, latency: 2, timestamp: 1),
-            .init(seqNum: 2, latency: 2, timestamp: 2),
-            .init(seqNum: 3, latency: 2, timestamp: 3)
-        ]
-        
-        let random: [PingResult] = [
-            .init(seqNum: 0, latency: 12, timestamp: 1),
-            .init(seqNum: 6, latency: 54, timestamp: 1),
-            .init(seqNum: 5, latency: 2, timestamp: 5),
-            .init(seqNum: 3, latency: 4, timestamp: 2),
-            .init(seqNum: 2, latency: 1, timestamp: 3),
-            .init(seqNum: 1, latency: 100, timestamp: 4)
-        ]
-        
+    func testMedianSingleItem() {
+        XCTAssertEqual(single.median, 1.0)
+    }
+    
+    func testAvgBasic() {
         XCTAssertEqual(basicEvenLength.avg, 3.5)
         XCTAssertEqual(basicOddLength.avg, 3)
-        XCTAssertEqual(equalLatency.avg, 2)
-        XCTAssertEqual(random.avg, 28.83, accuracy: 0.01)
+    }
+    
+    func testMedianBasic() {
+        XCTAssertEqual(basicEvenLength.median, 3)
+        XCTAssertEqual(basicOddLength.median, 3)
     }
 
-    func testMedianEvenLength() {
-        let basic: [PingResult] = [
-            .init(seqNum: 0, latency: 1, timestamp: 0),
-            .init(seqNum: 1, latency: 2, timestamp: 1),
-            .init(seqNum: 2, latency: 3, timestamp: 2),
-            .init(seqNum: 3, latency: 4, timestamp: 3),
-            .init(seqNum: 4, latency: 5, timestamp: 4),
-            .init(seqNum: 5, latency: 6, timestamp: 5)
-        ]
-        
-        let equalLatency: [PingResult] = [
-            .init(seqNum: 0, latency: 2, timestamp: 1),
-            .init(seqNum: 1, latency: 2, timestamp: 1),
-            .init(seqNum: 2, latency: 2, timestamp: 2),
-            .init(seqNum: 3, latency: 2, timestamp: 3)
-        ]
-        
-        let reversed: [PingResult] = [
-            .init(seqNum: 0, latency: 5, timestamp: 1),
-            .init(seqNum: 1, latency: 4, timestamp: 1),
-            .init(seqNum: 2, latency: 3, timestamp: 2),
-            .init(seqNum: 3, latency: 2, timestamp: 3),
-            .init(seqNum: 4, latency: 1, timestamp: 4),
-            .init(seqNum: 5, latency: 0, timestamp: 5)
-        ]
-        
-        let random: [PingResult] = [
-            .init(seqNum: 0, latency: 12, timestamp: 1),
+    func testAvgEqualLatency() {
+        XCTAssertEqual(equalLatencyEvenLength.avg, 2)
+        XCTAssertEqual(equalLatencyOddLength.avg, 1)
+    }
+    
+    func testMedianEqualLatency() {
+        XCTAssertEqual(equalLatencyEvenLength.median, 2)
+        XCTAssertEqual(equalLatencyOddLength.median, 1)
+    }
+    
+    func testAvgReversed() {
+        XCTAssertEqual(reversedOddLength.avg, 2)
+        XCTAssertEqual(reversedEvenLength.avg, 2.5)
+    }
+    
+    func testMedianReversed() {
+        XCTAssertEqual(reversedOddLength.median, 2)
+        XCTAssertEqual(reversedEvenLength.median, 2)
+    }
+    
+    func testAvgRandom() {
+        XCTAssertEqual(random.avg, 28.83, accuracy: 0.01)
+    }
+    
+    func testMedianRandom() {
+        XCTAssertEqual(random.median, 4)
+    }
+    
+    func testMedianRandom2() {
+        let random1: [PingResult] = [
+            .init(seqNum: 0, latency: 20, timestamp: 1),
             .init(seqNum: 6, latency: 54, timestamp: 1),
-            .init(seqNum: 5, latency: 2, timestamp: 5),
+            .init(seqNum: 5, latency: 37, timestamp: 5),
             .init(seqNum: 3, latency: 4, timestamp: 2),
             .init(seqNum: 2, latency: 1, timestamp: 3),
             .init(seqNum: 1, latency: 100, timestamp: 4)
         ]
+        XCTAssertEqual(random1.median, 20)
         
-        let short: [PingResult] = [
-            .init(seqNum: 1, latency: 100, timestamp: 1),
-            .init(seqNum: 2, latency: 5, timestamp: 2)
-        ]
-        
-        XCTAssertEqual(basic.median, 3)
-        XCTAssertEqual(equalLatency.median, 2)
-        XCTAssertEqual(reversed.median, 2)
-        XCTAssertEqual(random.median, 4)
-        XCTAssertEqual(short.median, 5)
-    }
-    
-    func testMedianOddLength() {
-        let basic: [PingResult] = [
-            .init(seqNum: 1, latency: 1, timestamp: 1)
-        ]
-        
-        let equalLatency: [PingResult] = [
-            .init(seqNum: 1, latency: 1, timestamp: 1),
-            .init(seqNum: 2, latency: 1, timestamp: 2),
-            .init(seqNum: 3, latency: 1, timestamp: 3)
-        ]
-        
-        let ordered: [PingResult] = [
-            .init(seqNum: 1, latency: 1, timestamp: 1),
-            .init(seqNum: 2, latency: 2, timestamp: 2),
-            .init(seqNum: 3, latency: 3, timestamp: 3),
-            .init(seqNum: 4, latency: 4, timestamp: 4),
-            .init(seqNum: 5, latency: 5, timestamp: 5)
-            
-        ]
-        
-        let reversed: [PingResult] = [
-            .init(seqNum: 5, latency: 50, timestamp: 5),
-            .init(seqNum: 4, latency: 40, timestamp: 4),
-            .init(seqNum: 3, latency: 30, timestamp: 3),
-            .init(seqNum: 2, latency: 20, timestamp: 2),
-            .init(seqNum: 1, latency: 10, timestamp: 1)
-        ]
-        
-        let random: [PingResult] = [
+        let random2: [PingResult] = [
             .init(seqNum: 1, latency: 312, timestamp: 1),
             .init(seqNum: 2, latency: 64, timestamp: 2),
             .init(seqNum: 3, latency: 800, timestamp: 3),
@@ -147,13 +141,6 @@ final class ArrayTests: XCTestCase {
             .init(seqNum: 6, latency: 2376, timestamp: 6),
             .init(seqNum: 7, latency: 12, timestamp: 7)
         ]
-        
-        XCTAssertEqual(basic.median, 1)
-        XCTAssertEqual(equalLatency.median, 1)
-        XCTAssertEqual(ordered.median, 3)
-        XCTAssertEqual(reversed.median, 30)
-        XCTAssertEqual(random.median, 251)
+        XCTAssertEqual(random2.median, 251)
     }
-    
-    
 }
