@@ -82,7 +82,7 @@ internal struct ICMPPing: Pingable {
         pingStatus = .running
         logger.debug("pipeline is \(asyncChannel.channel.pipeline.debugDescription)")
         
-        task = Task(priority: .background) { [asyncChannel] in
+        task = Task { [asyncChannel] in
             var cnt: UInt16 = 0
             do {
                 while !Task.isCancelled && cnt != pingConfiguration.count {
