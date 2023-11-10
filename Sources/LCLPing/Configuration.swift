@@ -15,10 +15,16 @@ extension LCLPing {
         public var useNative = false
         #endif
         
-        public init(verbose: Bool = false, useNative: Bool = false) {
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        init(verbose: Bool = false, useNative: Bool = false) {
             self.verbose = verbose
             self.useNative = useNative
         }
+        #else // !(os(macOS) || os(iOS) || os(watchOS) || os(tvOS))
+        init(verbose: Bool = false) {
+            self.verbose = verbose
+        }
+        #endif // !(os(macOS) || os(iOS) || os(watchOS) || os(tvOS))
     }
 }
 
