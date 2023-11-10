@@ -14,10 +14,10 @@ public struct LCLPing {
     
     private let configuration: LCLPing.Configuration
     
-    public init(configuration: LCLPing.Configuration) {
+    public init(configuration: LCLPing.Configuration = .init()) {
         ping = nil
         self.configuration = configuration
-        logger.logLevel = self.configuration.verbose ? .trace : .info
+        logger.logLevel = self.configuration.verbose ? .debug : .info
         // TODO: think about how to pass configuration to ping instance
     }
     

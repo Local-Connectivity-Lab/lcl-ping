@@ -50,9 +50,7 @@ extension LCLPing {
                 "Connection": "close"
             ]
             
-            public init() {
-                
-            }
+            public init() { }
         }
         
         public init(type: PingType, endpoint: IP) {

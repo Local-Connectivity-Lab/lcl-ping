@@ -112,13 +112,13 @@ internal struct HTTPPing: Pingable {
                             }
                         }
                         try await Task.sleep(nanoseconds: UInt64(cnt) * pingConfiguration.interval.nanosecond)
+//                        logger.trace("write packet #\(cnt)")
                         try await asyncChannel.outbound.write(cnt)
                         
                         var asyncItr = asyncChannel.inbound.makeAsyncIterator()
                         guard let next = try await asyncItr.next() else {
                             throw PingError.httpMissingResult
                         }
-                        
                         return next
                     }
                 }

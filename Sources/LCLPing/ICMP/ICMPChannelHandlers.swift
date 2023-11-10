@@ -68,7 +68,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         context.writeAndFlush(self.wrapOutboundOut(buffer), promise: promise)
         self.seqToRequest[sequenceNum] = icmpRequest
         
-        self.timerScheduler.schedule(delay: self.configuration.timeout, key: sequenceNum) { [weak self] in
+        self.timerScheduler.schedule(delay: self.configuration.timeout, key: sequenceNum) { [weak self, context] in
             if let self = self, !self.seqToResponse.keys.contains(sequenceNum) {
                 logger.debug("[\(#function)]: packet #\(sequenceNum) timed out")
                 self.seqToResponse[sequenceNum] = nil

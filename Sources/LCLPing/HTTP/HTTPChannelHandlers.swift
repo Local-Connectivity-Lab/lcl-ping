@@ -86,7 +86,6 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
         
         logger.debug("Header is \(header)")
         logger.debug("url is \(self.url.absoluteString)")
-        logger.debug("path is \(url.path)")
         
         let requestHead = HTTPRequestHead(version: .http1_1, method: .GET, uri: url.path.isEmpty ? "/" : url.path, headers: header)
         context.write(self.wrapOutboundOut((sequenceNumber, requestHead)), promise: promise)
@@ -125,7 +124,7 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
         }
         
         context.channel.close(mode: .all, promise: nil)
-        logger.debug("[\(#function)]: Closing all channels ...")
+        logger.debug("[\(#function)]: Closing all channels ... because packet #\(latencyEntry.seqNum) done")
     }
     
     func errorCaught(context: ChannelHandlerContext, error: Error) {
@@ -217,12 +216,14 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
         context.write(self.wrapOutboundOut(.head(httpRequest)), promise: promise)
         context.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: promise)
         
-        timerScheduler.schedule(delay: self.configuration.timeout, key: sequenceNum) { [weak self] in
+        timerScheduler.schedule(delay: self.configuration.timeout, key: sequenceNum) { [weak self, context] in
             if let self = self, var le = self.latencyEntry {
-                logger.debug("[\(#function)]: packet #\(le.seqNum) timed out")
-                le.latencyStatus = .timeout
-                context.fireChannelRead(self.wrapInboundOut(le))
-                return
+                context.eventLoop.execute {
+                    logger.debug("[\(#function)]: packet #\(le.seqNum) timed out")
+                    le.latencyStatus = .timeout
+                    context.fireChannelRead(self.wrapInboundOut(le))
+                    return
+                }
             }
         }
     }
