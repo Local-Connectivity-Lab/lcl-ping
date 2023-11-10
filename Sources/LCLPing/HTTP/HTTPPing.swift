@@ -32,18 +32,18 @@ internal struct HTTPPing: Pingable {
 
     private(set) var pingStatus: PingState = .ready
     private var pingSummary: PingSummary?
-    private let httpOptions: LCLPing.Configuration.HTTPOptions
+    private let httpOptions: LCLPing.PingConfiguration.HTTPOptions
     
-    internal init(options: LCLPing.Configuration.HTTPOptions) {
+    internal init(options: LCLPing.PingConfiguration.HTTPOptions) {
         self.httpOptions = options
     }
     
     // TODO: implement non-async version
     
-    mutating func start(with configuration: LCLPing.Configuration) async throws {
+    mutating func start(with pingConfiguration: LCLPing.PingConfiguration) async throws {
         let addr: String
         var port: UInt16
-        switch configuration.endpoint {
+        switch pingConfiguration.endpoint {
         case .ipv4(let address, .none):
             addr = address
             port = 80
@@ -84,7 +84,7 @@ internal struct HTTPPing: Pingable {
             let pingResponses = try await withThrowingTaskGroup(of: PingResponse.self, returning: [PingResponse].self) { group in
                 var pingResponses: [PingResponse] = []
                 
-                for cnt in 0..<configuration.count {
+                for cnt in 0..<pingConfiguration.count {
                     if pingStatus == .stopped {
                         logger.debug("group task is cancelled")
                         group.cancelAll()
@@ -106,12 +106,12 @@ internal struct HTTPPing: Pingable {
                                 }
                                 
                                 try channel.pipeline.syncOperations.addHTTPClientHandlers(position: .last)
-                                try channel.pipeline.syncOperations.addHandlers([HTTPTracingHandler(configuration: configuration, httpOptions: httpOptions), HTTPDuplexer(url: url, httpOptions: httpOptions, configuration: configuration)], position: .last)
+                                try channel.pipeline.syncOperations.addHandlers([HTTPTracingHandler(configuration: pingConfiguration, httpOptions: httpOptions), HTTPDuplexer(url: url, httpOptions: httpOptions, configuration: pingConfiguration)], position: .last)
                                 
                                 return try NIOAsyncChannel<PingResponse, HTTPOutboundIn>(synchronouslyWrapping: channel)
                             }
                         }
-                        try await Task.sleep(nanoseconds: UInt64(cnt) * configuration.interval.nanosecond)
+                        try await Task.sleep(nanoseconds: UInt64(cnt) * pingConfiguration.interval.nanosecond)
                         try await asyncChannel.outbound.write(cnt)
                         
                         var asyncItr = asyncChannel.inbound.makeAsyncIterator()

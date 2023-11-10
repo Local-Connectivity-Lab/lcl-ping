@@ -36,10 +36,10 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
     private var state: State
     
     private let url: URL
-    private let configuration: LCLPing.Configuration
-    private let httpOptions: LCLPing.Configuration.HTTPOptions
+    private let configuration: LCLPing.PingConfiguration
+    private let httpOptions: LCLPing.PingConfiguration.HTTPOptions
     
-    init(url: URL, httpOptions: LCLPing.Configuration.HTTPOptions, configuration: LCLPing.Configuration) {
+    init(url: URL, httpOptions: LCLPing.PingConfiguration.HTTPOptions, configuration: LCLPing.PingConfiguration) {
         self.url = url
         self.httpOptions = httpOptions
         self.configuration = configuration
@@ -163,12 +163,12 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
     
     private var state: State
     
-    private let configuration: LCLPing.Configuration
-    private let httpOptions: LCLPing.Configuration.HTTPOptions
+    private let configuration: LCLPing.PingConfiguration
+    private let httpOptions: LCLPing.PingConfiguration.HTTPOptions
     private var latencyEntry: LatencyEntry?
     private var timerScheduler: TimerScheduler
     
-    init(configuration: LCLPing.Configuration, httpOptions: LCLPing.Configuration.HTTPOptions) {
+    init(configuration: LCLPing.PingConfiguration, httpOptions: LCLPing.PingConfiguration.HTTPOptions) {
         self.configuration = configuration
         self.httpOptions = httpOptions
         self.timerScheduler = TimerScheduler()
@@ -294,11 +294,11 @@ internal final class HTTPHandler: NSObject {
     private var session: URLSession?
     private var taskToSeqNum: Dictionary<Int, UInt16> = [:]
     private var taskToLatency: Dictionary<Int, Double?> = [:]
-    private var userConfiguration: LCLPing.Configuration?
+    private var userConfiguration: LCLPing.PingConfiguration?
     
     private var continuation: AsyncStream<PingResponse>.Continuation?
     
-    func execute(configuration: LCLPing.Configuration) async throws -> AsyncStream<PingResponse>  {
+    func execute(configuration: LCLPing.PingConfiguration) async throws -> AsyncStream<PingResponse>  {
         self.userConfiguration = configuration
         let urlsessionConfig: URLSessionConfiguration = .ephemeral
         urlsessionConfig.timeoutIntervalForRequest = configuration.timeout

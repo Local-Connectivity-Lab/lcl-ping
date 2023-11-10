@@ -8,11 +8,25 @@
 import Foundation
 import NIOHTTP1
 
+extension LCLPing {
+    public struct Configuration {
+        public var verbose = false
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        public var useNative = false
+        #endif
+        
+        public init(verbose: Bool = false, useNative: Bool = false) {
+            self.verbose = verbose
+            self.useNative = useNative
+        }
+    }
+}
+
 
 extension LCLPing {
     
     /// The configuration for running each LCLPing test
-    public struct Configuration {
+    public struct PingConfiguration {
         
         /// Internet Protocol (IP) that LCLPing supports
         public enum IP {

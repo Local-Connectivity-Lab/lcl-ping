@@ -2,11 +2,6 @@
 
 public struct LCLPing {
     
-    public init() {
-        ping = nil
-        logger.logLevel = .debug
-    }
-    
     var ping: Pingable?
     
     public var status: PingState {
@@ -17,11 +12,20 @@ public struct LCLPing {
         ping?.summary ?? .empty
     }
     
-    public mutating func start(configuration: LCLPing.Configuration) async throws {
+    private let configuration: LCLPing.Configuration
+    
+    public init(configuration: LCLPing.Configuration) {
+        ping = nil
+        self.configuration = configuration
+        logger.logLevel = self.configuration.verbose ? .trace : .info
+        // TODO: think about how to pass configuration to ping instance
+    }
+    
+    public mutating func start(pingConfiguration: LCLPing.PingConfiguration) async throws {
         // TODO: validate configuration
         logger.info("START")
-        logger.debug("Using configuration \(configuration)")
-        let type = configuration.type
+        logger.debug("Using configuration \(pingConfiguration)")
+        let type = pingConfiguration.type
         switch type {
         case .icmp:
             logger.debug("start ICMP Ping ...")
@@ -31,7 +35,7 @@ public struct LCLPing {
             ping = HTTPPing(options: options)
         }
         
-        try await ping?.start(with: configuration)
+        try await ping?.start(with: pingConfiguration)
         logger.info("DONE")
     }
     

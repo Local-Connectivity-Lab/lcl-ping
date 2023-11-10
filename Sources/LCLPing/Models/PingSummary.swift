@@ -9,19 +9,19 @@ import Foundation
 import NIOCore
 
 public struct PingSummary: Equatable {    
-    let min: Double
-    let max: Double
-    let avg: Double
-    let median: Double
-    let stdDev: Double
-    let jitter: Double
-    let details: [PingResult]
-    let totalCount: Int
-    let timeout: Set<UInt16>
-    let duplicates: Set<UInt16>
-    let ipAddress: String
-    let port: Int
-    let `protocol`: CInt
+    public let min: Double
+    public let max: Double
+    public let avg: Double
+    public let median: Double
+    public let stdDev: Double
+    public let jitter: Double
+    public let details: [PingResult]
+    public let totalCount: Int
+    public let timeout: Set<UInt16>
+    public let duplicates: Set<UInt16>
+    public let ipAddress: String
+    public let port: Int
+    public let `protocol`: CInt
 }
 
 extension PingSummary {

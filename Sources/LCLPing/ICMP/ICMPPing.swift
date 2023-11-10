@@ -38,7 +38,7 @@ internal struct ICMPPing: Pingable {
     
     // TODO: implement non-async version
     
-    mutating func start(with configuration: LCLPing.Configuration) async throws {
+    mutating func start(with pingConfiguration: LCLPing.PingConfiguration) async throws {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         
         defer {
@@ -46,7 +46,7 @@ internal struct ICMPPing: Pingable {
         }
         
         let host: String
-        switch configuration.endpoint {
+        switch pingConfiguration.endpoint {
         case .ipv4(let h, _):
             host = h
         default:
@@ -63,7 +63,7 @@ internal struct ICMPPing: Pingable {
                .connect(to: resolvedAddress) { channel in
                    channel.eventLoop.makeCompletedFuture {
                        try channel.pipeline.syncOperations.addHandlers(
-                           [IPDecoder(), ICMPDecoder(), ICMPDuplexer(configuration: configuration)]
+                           [IPDecoder(), ICMPDecoder(), ICMPDuplexer(configuration: pingConfiguration)]
                        )
                        return try NIOAsyncChannel<PingResponse, ICMPOutboundIn>(synchronouslyWrapping: channel)
                }
@@ -85,18 +85,18 @@ internal struct ICMPPing: Pingable {
         task = Task(priority: .background) { [asyncChannel] in
             var cnt: UInt16 = 0
             do {
-                while !Task.isCancelled && cnt != configuration.count {
+                while !Task.isCancelled && cnt != pingConfiguration.count {
                     if cnt >= 1 {
-                        try await Task.sleep(nanoseconds: configuration.interval.nanosecond)
+                        try await Task.sleep(nanoseconds: pingConfiguration.interval.nanosecond)
                     }
                     logger.debug("sending packet #\(cnt)")
                     try await asyncChannel.outbound.write((ICMPPingIdentifier, cnt))
                     cnt += 1
                 }
                 
-                if Task.isCancelled {
-                    asyncChannel.channel.close(mode: .all, promise: nil)
-                }
+//                if Task.isCancelled {
+//                    asyncChannel.channel.close(mode: .all, promise: nil)
+//                }
             } catch {
                 throw PingError.sendPingFailed(error)
             }
