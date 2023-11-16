@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct PingResult : Equatable {
+public struct PingResult : Equatable, Encodable {
     public let seqNum: UInt16
     public let latency: Double
     public let timestamp: TimeInterval

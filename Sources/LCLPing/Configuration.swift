@@ -9,7 +9,7 @@ import Foundation
 import NIOHTTP1
 
 extension LCLPing {
-    public struct Configuration {
+    public struct Options {
         public var verbose = false
         #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
         public var useNative = false
@@ -59,9 +59,13 @@ extension LCLPing {
             public init() { }
         }
         
-        public init(type: PingType, endpoint: IP) {
+        public init(type: PingType, endpoint: IP, count: UInt16 = 10, interval: TimeInterval = 1, timeToLive: UInt16 = 64, timeout: TimeInterval = 1) {
             self.type = type
             self.endpoint = endpoint
+            self.count = count
+            self.interval = interval
+            self.timeToLive = timeToLive
+            self.timeout = timeout
         }
         
         /// The mechanism that LCLPing will use to ping the target host

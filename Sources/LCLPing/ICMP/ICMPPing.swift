@@ -90,13 +90,13 @@ internal struct ICMPPing: Pingable {
                         try await Task.sleep(nanoseconds: pingConfiguration.interval.nanosecond)
                     }
                     logger.debug("sending packet #\(cnt)")
+                    print("sending packet #\(cnt)")
                     try await asyncChannel.outbound.write((ICMPPingIdentifier, cnt))
+                    print("packet #\(cnt) finishes")
                     cnt += 1
                 }
-                
-//                if Task.isCancelled {
-//                    asyncChannel.channel.close(mode: .all, promise: nil)
-//                }
+            } catch is CancellationError {
+                logger.info("Task is cancelled while waiting")
             } catch {
                 throw PingError.sendPingFailed(error)
             }
@@ -137,9 +137,9 @@ internal struct ICMPPing: Pingable {
         switch pingStatus {
         case .ready, .running:
             logger.debug("stopping the icmp ping")
+            self.asyncChannel?.channel.close(mode: .all, promise: nil)
             self.task?.cancel()
             self.pingStatus = .stopped
-            self.asyncChannel?.channel.close(mode: .all, promise: nil)
             logger.debug("icmp ping stopped")
         case .error, .stopped, .finished:
             logger.debug("already in end state. no need to stop")

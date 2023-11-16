@@ -8,7 +8,7 @@
 import Foundation
 import NIOCore
 
-public struct PingSummary: Equatable {    
+public struct PingSummary: Equatable, Encodable {    
     public let min: Double
     public let max: Double
     public let avg: Double

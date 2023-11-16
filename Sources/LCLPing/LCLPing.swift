@@ -12,12 +12,12 @@ public struct LCLPing {
         ping?.summary ?? .empty
     }
     
-    private let configuration: LCLPing.Configuration
+    private let options: LCLPing.Options
     
-    public init(configuration: LCLPing.Configuration = .init()) {
+    public init(options: LCLPing.Options = .init()) {
         ping = nil
-        self.configuration = configuration
-        logger.logLevel = self.configuration.verbose ? .debug : .info
+        self.options = options
+        logger.logLevel = self.options.verbose ? .debug : .info
         // TODO: think about how to pass configuration to ping instance
     }
     
