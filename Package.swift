@@ -43,6 +43,10 @@ let package = Package(
         .testTarget(
             name: "UtilitiesTests",
             dependencies: ["LCLPing"]
+        ),
+        .testTarget(
+            name: "TimerTests",
+            dependencies: ["LCLPing"]
         )
     ]
 )

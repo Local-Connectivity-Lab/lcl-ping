@@ -34,8 +34,8 @@ internal struct HTTPPing: Pingable {
     private var pingSummary: PingSummary?
     private let httpOptions: LCLPing.PingConfiguration.HTTPOptions
     
-    internal init(options: LCLPing.PingConfiguration.HTTPOptions) {
-        self.httpOptions = options
+    internal init(httpOptions: LCLPing.PingConfiguration.HTTPOptions) {
+        self.httpOptions = httpOptions
     }
     
     // TODO: implement non-async version
@@ -111,6 +111,8 @@ internal struct HTTPPing: Pingable {
                                 return try NIOAsyncChannel<PingResponse, HTTPOutboundIn>(synchronouslyWrapping: channel)
                             }
                         }
+                        
+                        // Task.sleep respects cooperative cancellation. That is, it will throw a cancellation error and finish early if its current task is cancelled.
                         try await Task.sleep(nanoseconds: UInt64(cnt) * pingConfiguration.interval.nanosecond)
 //                        logger.trace("write packet #\(cnt)")
                         try await asyncChannel.outbound.write(cnt)
@@ -123,8 +125,14 @@ internal struct HTTPPing: Pingable {
                     }
                 }
                 
-                while pingStatus != .stopped, let next = try await group.next() {
-                    pingResponses.append(next)
+                do {
+                    while pingStatus != .stopped, let next = try await group.next() {
+                        pingResponses.append(next)
+                    }
+                } catch is CancellationError {
+                    logger.info("Task is cancelled while waiting")
+                } catch {
+                    throw error
                 }
                 
                 if pingStatus == .stopped {

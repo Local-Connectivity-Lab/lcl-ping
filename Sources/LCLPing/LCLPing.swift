@@ -30,9 +30,9 @@ public struct LCLPing {
         case .icmp:
             logger.debug("start ICMP Ping ...")
             ping = ICMPPing()
-        case .http(let options):
-            logger.debug("start HTTP Ping with options \(options)")
-            ping = HTTPPing(options: options)
+        case .http(let httpOptions):
+            logger.debug("start HTTP Ping with options \(httpOptions)")
+            ping = HTTPPing(httpOptions: httpOptions)
         }
         
         try await ping?.start(with: pingConfiguration)

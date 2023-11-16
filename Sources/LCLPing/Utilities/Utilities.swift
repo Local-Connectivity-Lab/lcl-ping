@@ -63,7 +63,7 @@ internal func summarizePingResponse(_ pingResponses: [PingResponse], host: Socke
             timeout.insert(sequenceNum)
         case .error:
             errorCount += 1
-            print("Error occurred during ping")
+//            print("Error occurred during ping")
         }
     }
     
