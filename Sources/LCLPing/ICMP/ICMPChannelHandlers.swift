@@ -43,7 +43,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
     /// sequence number to an optional ICMP response
     private var seqToResponse: Dictionary<UInt16, ICMPHeader?>
     
-    private var timerScheduler: TimerScheduler
+    private var timerScheduler: TimerScheduler<UInt16>
     
     init(configuration: LCLPing.PingConfiguration) {
         self.configuration = configuration

@@ -165,7 +165,7 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
     private let configuration: LCLPing.PingConfiguration
     private let httpOptions: LCLPing.PingConfiguration.HTTPOptions
     private var latencyEntry: LatencyEntry?
-    private var timerScheduler: TimerScheduler
+    private var timerScheduler: TimerScheduler<UInt16>
     
     init(configuration: LCLPing.PingConfiguration, httpOptions: LCLPing.PingConfiguration.HTTPOptions) {
         self.configuration = configuration

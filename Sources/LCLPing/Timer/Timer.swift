@@ -11,14 +11,14 @@ import Foundation
 ///
 /// A timer will be fired when the deadline is reached and the caller need to handle it.
 /// Timer can be canceled at any time before it is fired.
-internal struct TimerScheduler {
-    private static let LABEL = "com.lcl.lclping"
+internal struct TimerScheduler<Key: Hashable> {
+    private let LABEL = "com.lcl.lclping"
 
-    private var tracker: Dictionary<UInt16, DispatchWorkItem>
+    private var tracker: Dictionary<Key, DispatchWorkItem>
     private let queue: DispatchQueue
     
     init() {
-        self.queue = DispatchQueue(label: TimerScheduler.LABEL, qos: .utility)
+        self.queue = DispatchQueue(label: LABEL, qos: .utility)
         self.tracker = [:]
     }
     
@@ -29,7 +29,7 @@ internal struct TimerScheduler {
     /// - Parameters:
     ///     - key: the key for which the timer will be scheduled
     ///     - operation: the operation that will be invoked when the timer is fired
-    mutating func schedule(delay: Double, key: UInt16, operation: @escaping () -> Void) {
+    mutating func schedule(delay: Double, key: Key, operation: @escaping () -> Void) {
         if containsKey(key) {
             logger.debug("[\(#function)]: already scheduled a timer for packet #\(key). Ignore scheduling request")
             return
@@ -44,7 +44,7 @@ internal struct TimerScheduler {
     /// Check whether the key has already associated with an existing timer
     ///
     /// - Returns: true if the key is associated with a timer; false otherwise
-    func containsKey(_ key: UInt16) -> Bool {
+    func containsKey(_ key: Key) -> Bool {
         return self.tracker.keys.contains(key)
     }
     
@@ -54,7 +54,7 @@ internal struct TimerScheduler {
     ///
     /// - Parameters:
     ///     - key: the key whose associated timer will be cancelled
-    mutating func remove(key: UInt16) {
+    mutating func remove(key: Key) {
         if let timer = self.tracker.removeValue(forKey: key), !timer.isCancelled {
             logger.debug("[\(#function)]: removed timer for packet #\(key)")
             timer.cancel()
