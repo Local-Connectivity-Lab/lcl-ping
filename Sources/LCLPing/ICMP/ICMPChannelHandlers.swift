@@ -179,7 +179,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         let sequenceNum = icmpResponse.sequenceNum
         let identifier = icmpResponse.idenifier
         
-        self.timerScheduler.cancel(key: sequenceNum)
+        self.timerScheduler.remove(key: sequenceNum)
         
         if self.seqToResponse.keys.contains(sequenceNum) {
             let pingResponse: PingResponse = self.seqToResponse[sequenceNum] == nil ? .timeout(sequenceNum) : .duplicated(sequenceNum)

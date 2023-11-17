@@ -48,14 +48,14 @@ internal struct TimerScheduler {
         return self.tracker.keys.contains(key)
     }
     
-    /// Cancel the timer associated with the given key
+    /// Remove and cancel the timer associated with the given key if the timer is not cancelled.
     ///
-    /// If the key doesn't have any associated timer, then calling this function will result in a no-op
+    /// If the key doesn't have any associated timer or the timer has already been cancelled, then calling this function will result in a no-op
     ///
     /// - Parameters:
     ///     - key: the key whose associated timer will be cancelled
-    mutating func cancel(key: UInt16) {
-        if let timer = self.tracker.removeValue(forKey: key) {
+    mutating func remove(key: UInt16) {
+        if let timer = self.tracker.removeValue(forKey: key), !timer.isCancelled {
             logger.debug("[\(#function)]: removed timer for packet #\(key)")
             timer.cancel()
         }
