@@ -108,20 +108,24 @@ internal struct HTTPPing: Pingable {
                                 try channel.pipeline.syncOperations.addHTTPClientHandlers(position: .last)
                                 try channel.pipeline.syncOperations.addHandlers([HTTPTracingHandler(configuration: pingConfiguration, httpOptions: httpOptions), HTTPDuplexer(url: url, httpOptions: httpOptions, configuration: pingConfiguration)], position: .last)
                                 
-                                return try NIOAsyncChannel<PingResponse, HTTPOutboundIn>(synchronouslyWrapping: channel)
+                                return try NIOAsyncChannel<PingResponse, HTTPOutboundIn>(wrappingChannelSynchronously: channel)
                             }
                         }
                         
                         // Task.sleep respects cooperative cancellation. That is, it will throw a cancellation error and finish early if its current task is cancelled.
                         try await Task.sleep(nanoseconds: UInt64(cnt) * pingConfiguration.interval.nanosecond)
 //                        logger.trace("write packet #\(cnt)")
-                        try await asyncChannel.outbound.write(cnt)
-                        
-                        var asyncItr = asyncChannel.inbound.makeAsyncIterator()
-                        guard let next = try await asyncItr.next() else {
-                            throw PingError.httpMissingResult
+                        let result = try await asyncChannel.executeThenClose { inbound, outbound in
+                            try await outbound.write(cnt)
+                            
+                            var asyncItr = inbound.makeAsyncIterator()
+                            guard let next = try await asyncItr.next() else {
+                                throw PingError.httpMissingResult
+                            }
+                            return next
                         }
-                        return next
+                        
+                        return result
                     }
                 }
                 

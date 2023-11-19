@@ -17,7 +17,7 @@ let package = Package(
     dependencies: [
         // Dependencies declare other packages that this package depends on.
         .package(url: "https://github.com/apple/swift-nio-transport-services.git", from: "1.13.0"),
-        .package(url: "https://github.com/apple/swift-nio.git", from: "2.61.0"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.62.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.5.3"),
         .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.25.0"),
         .package(url: "https://github.com/apple/swift-collections.git", from: "1.0.4")
@@ -47,6 +47,7 @@ let package = Package(
         .testTarget(
             name: "TimerTests",
             dependencies: ["LCLPing"]
-        )
+        ),
+        .testTarget(name: "ModelTests", dependencies: ["LCLPing"])
     ]
 )

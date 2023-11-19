@@ -29,10 +29,10 @@ internal struct ICMPHeader {
     let code: UInt8
     var checkSum: UInt16
     
-    // the packet identifier, in network order
+    // the packet identifier
     let idenifier: UInt16
     
-    // the packet sequence number,  in network order
+    // the packet sequence number
     let sequenceNum: UInt16
     
     var payload: ICMPRequestPayload

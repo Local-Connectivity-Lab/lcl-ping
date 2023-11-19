@@ -65,7 +65,7 @@ internal struct ICMPPing: Pingable {
                        try channel.pipeline.syncOperations.addHandlers(
                            [IPDecoder(), ICMPDecoder(), ICMPDuplexer(configuration: pingConfiguration)]
                        )
-                       return try NIOAsyncChannel<PingResponse, ICMPOutboundIn>(synchronouslyWrapping: channel)
+                       return try NIOAsyncChannel<PingResponse, ICMPOutboundIn>(wrappingChannelSynchronously: channel)
                }
            }
         } catch {
@@ -82,31 +82,35 @@ internal struct ICMPPing: Pingable {
         pingStatus = .running
         logger.debug("pipeline is \(asyncChannel.channel.pipeline.debugDescription)")
         
-        task = Task { [asyncChannel] in
-            var cnt: UInt16 = 0
-            do {
-                while !Task.isCancelled && cnt != pingConfiguration.count {
-                    if cnt >= 1 {
-                        try await Task.sleep(nanoseconds: pingConfiguration.interval.nanosecond)
+        let pingResponses = try await asyncChannel.executeThenClose { inbound, outbound in
+            task = Task {
+                var cnt: UInt16 = 0
+                do {
+                    while !Task.isCancelled && cnt != pingConfiguration.count {
+                        if cnt >= 1 {
+                            try await Task.sleep(nanoseconds: pingConfiguration.interval.nanosecond)
+                        }
+                        logger.debug("sending packet #\(cnt)")
+                        print("sending packet #\(cnt)")
+                        try await outbound.write((ICMPPingIdentifier, cnt))
+                        print("packet #\(cnt) finishes")
+                        cnt += 1
                     }
-                    logger.debug("sending packet #\(cnt)")
-                    print("sending packet #\(cnt)")
-                    try await asyncChannel.outbound.write((ICMPPingIdentifier, cnt))
-                    print("packet #\(cnt) finishes")
-                    cnt += 1
+                } catch is CancellationError {
+                    logger.info("Task is cancelled while waiting")
+                } catch {
+                    throw PingError.sendPingFailed(error)
                 }
-            } catch is CancellationError {
-                logger.info("Task is cancelled while waiting")
-            } catch {
-                throw PingError.sendPingFailed(error)
             }
-        }
-        
-        var pingResponses: [PingResponse] = []
+            
+            var pingResponses: [PingResponse] = []
 
-        for try await pingResponse in asyncChannel.inbound {
-            logger.debug("received ping response: \(pingResponse)")
-            pingResponses.append(pingResponse)
+            for try await pingResponse in inbound {
+                logger.debug("received ping response: \(pingResponse)")
+                pingResponses.append(pingResponse)
+            }
+            
+            return pingResponses
         }
         
         let taskResult = await task?.result
