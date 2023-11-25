@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum PingError: Error {
+public enum PingError: Error {    
     case operationNotSupported(String)
     case unknownError(String)
     case invalidConfiguration(String)
@@ -18,6 +18,8 @@ public enum PingError: Error {
     case invalidICMPResponse
     case invalidIPv4URL
     case invalidIPv6URL
+    case invalidIPVersion
+    case invalidIPProtocol
     
     
     case icmpDestinationNetworkUnreachable
@@ -48,8 +50,6 @@ public enum PingError: Error {
     case icmpMissingARequiredOption
     case icmpBadLength
     
-    
-    
     case invalidHTTPSession
     case httpRequestFailed(Int)
     
@@ -65,6 +65,6 @@ public enum PingError: Error {
     case httpMissingResult
 }
 
-public enum RuntimeError: Error {
+public enum RuntimeError: Error, Equatable {
     case insufficientBytes(String)
 }

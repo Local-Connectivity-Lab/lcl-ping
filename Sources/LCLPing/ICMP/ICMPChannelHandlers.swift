@@ -317,11 +317,16 @@ internal final class IPDecoder: ChannelInboundHandler {
             return
         }
         let version = ipv4Header.versionAndHeaderLength & 0xF0
-        precondition(version == 0x40, "Not valid IP Header. Need 0x40. But received \(version)")
+        if version != 0x40 {
+            context.fireErrorCaught(PingError.invalidIPVersion)
+            return
+        }
         
         let proto = ipv4Header.protocol
-        precondition(proto == IPPROTO_ICMP, "Not ICMP Message. Need \(IPPROTO_ICMP). But received \(proto)")
-        
+        if proto != IPPROTO_ICMP {
+            context.fireErrorCaught(PingError.invalidIPProtocol)
+            return
+        }
         let headerLength = (Int(ipv4Header.versionAndHeaderLength) & 0x0F) * sizeof(UInt32.self)
         buffer.moveReaderIndex(to: headerLength)
         context.fireChannelRead(self.wrapInboundOut(buffer.slice()))
