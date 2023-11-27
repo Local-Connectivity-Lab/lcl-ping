@@ -20,6 +20,8 @@ public enum PingError: Error {
     case invalidIPv6URL
     case invalidIPVersion
     case invalidIPProtocol
+    case invalidICMPChecksum
+    case invalidICMPIdentifier
     
     
     case icmpDestinationNetworkUnreachable

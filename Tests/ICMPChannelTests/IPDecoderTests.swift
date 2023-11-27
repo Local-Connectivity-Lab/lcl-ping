@@ -27,7 +27,7 @@ final class IPDecoderTests: XCTestCase {
         channel = nil
     }
     
-    func testAddIPDecoderChannel() {
+    func testAddIPDecoderChannelHandler() {
         XCTAssertNotNil(channel, "Channel should be initialized by now and but is nil")
         XCTAssertNoThrow(try self.channel.pipeline.addHandler(IPDecoder()).wait())
         channel.pipeline.fireChannelActive()

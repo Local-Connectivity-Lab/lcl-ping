@@ -172,7 +172,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
             context.fireChannelRead(self.wrapInboundOut(.error(PingError.icmpBadLength)))
             return
         default:
-            context.fireChannelRead(self.wrapInboundOut(.error(PingError.unknownError("Received unknown ICMP type (\(type) and ICMP code (\(code)"))))
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.unknownError("Received unknown ICMP type (\(type)) and ICMP code (\(code))"))))
             return
         }
         
@@ -189,11 +189,19 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         
         guard let icmpRequest = self.seqToRequest[sequenceNum] else {
             logger.error("[\(#function)]: Unable to find matching request with sequence number \(sequenceNum)")
-            fatalError("Unable to find matching request with sequence number \(sequenceNum)")
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.invalidICMPResponse)))
+            return
         }
         
-        precondition(icmpResponse.checkSum == icmpResponse.calcChecksum())
-        precondition(identifier == icmpRequest.idenifier)
+        if icmpResponse.checkSum != icmpResponse.calcChecksum() {
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.invalidICMPChecksum)))
+            return
+        }
+        
+        if identifier != icmpRequest.idenifier {
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.invalidICMPIdentifier)))
+            return
+        }
         
         self.seqToResponse[sequenceNum] = icmpResponse
         let currentTimestamp = Date.currentTimestamp

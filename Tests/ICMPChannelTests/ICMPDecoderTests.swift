@@ -26,7 +26,7 @@ final class ICMPDecoderTests: XCTestCase {
         channel = nil
     }
 
-    func testAddICMPDecoderChannel() {
+    func testAddICMPDecoderChannelHandler() {
         XCTAssertNotNil(channel, "Channel should be initialized by now but is still nil")
         XCTAssertNoThrow(try self.channel.pipeline.addHandler(ICMPDecoder()).wait())
         channel.pipeline.fireChannelActive()

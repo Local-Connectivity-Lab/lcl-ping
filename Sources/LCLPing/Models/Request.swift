@@ -37,9 +37,9 @@ internal struct ICMPHeader {
     
     var payload: ICMPRequestPayload
     
-    init(idenifier: UInt16, sequenceNum: UInt16) {
-        self.type = ICMPType.EchoRequest.rawValue
-        self.code = 0
+    init(type: UInt8 = ICMPType.EchoRequest.rawValue, code: UInt8 = 0, idenifier: UInt16, sequenceNum: UInt16) {
+        self.type = type
+        self.code = code
         self.checkSum = 0
         self.idenifier = idenifier
         self.sequenceNum = sequenceNum
