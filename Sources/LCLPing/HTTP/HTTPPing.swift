@@ -77,7 +77,6 @@ internal struct HTTPPing: Pingable {
         }
         
         let resolvedAddress = try SocketAddress.makeAddressResolvingHost(host, port: Int(port))
-        print(resolvedAddress)
         
         pingStatus = .running
         do {

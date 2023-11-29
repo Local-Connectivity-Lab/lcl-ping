@@ -205,7 +205,7 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         let (sequenceNum, httpRequest) = self.unwrapOutboundIn(data)
         guard self.state.isOperational else {
-            logger.debug("[\(#function)]: error: IO on closed channel")
+            logger.error("[\(#function)]: error: IO on closed channel")
             context.fireErrorCaught(ChannelError.ioOnClosedChannel)
             return
         }
@@ -235,7 +235,7 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
         }
         
         let httpResponse: HTTPClientResponsePart = self.unwrapInboundIn(data)
-        guard var le = self.latencyEntry else {
+        if self.latencyEntry == nil {
             self.state = .error
             context.fireErrorCaught(PingError.httpNoMatchingRequest)
             return
@@ -246,26 +246,28 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
             let statusCode = responseHead.status.code
             switch statusCode {
             case 200...299:
-                le.responseStart = Date.currentTimestamp
+                self.latencyEntry!.responseStart = Date.currentTimestamp
                 if httpOptions.useServerTiming {
-                    le.serverTiming = responseHead.headers.contains(name: "Server-Timing") ? matchServerTiming(field: responseHead.headers.first(name: "Server-Timing")!) : estimatedServerTiming
+                    self.latencyEntry!.serverTiming = responseHead.headers.contains(name: "Server-Timing") ? matchServerTiming(field: responseHead.headers.first(name: "Server-Timing")!) : estimatedServerTiming
                 }
             case 300...599:
-                le.latencyStatus = .error(statusCode)
+                self.latencyEntry!.latencyStatus = .error(statusCode)
             default:
-                le.latencyStatus = .error(statusCode)
+                self.latencyEntry!.latencyStatus = .error(statusCode)
             }
         case .body(_):
             break
         case .end:
-            guard var le = self.latencyEntry else {
+            if self.latencyEntry == nil {
                 self.state = .error
                 context.fireErrorCaught(PingError.httpNoMatchingRequest)
                 return
             }
-            le.responseEnd = Date.currentTimestamp
-            le.latencyStatus = .finished
-            context.fireChannelRead(self.wrapInboundOut(le))
+            self.latencyEntry!.responseEnd = Date.currentTimestamp
+            if self.latencyEntry!.latencyStatus == .waiting {
+                self.latencyEntry!.latencyStatus = .finished
+            }
+            context.fireChannelRead(self.wrapInboundOut(self.latencyEntry!))
             self.latencyEntry = nil
         }
     }

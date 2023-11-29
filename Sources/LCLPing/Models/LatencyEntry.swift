@@ -24,7 +24,7 @@ internal struct LatencyEntry {
 }
 
 extension LatencyEntry {
-    internal enum Status {
+    internal enum Status: Equatable {
         case finished
         case timeout
         case error(UInt) // status code (similar to HTTP status code)
