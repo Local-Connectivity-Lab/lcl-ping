@@ -120,7 +120,7 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
             }
         case .waiting:
             self.state = .error
-            fatalError("Latency Entry should not be in waiting state.")
+            context.fireChannelRead(self.wrapInboundOut(.error(PingError.invalidLatencyResponseState)))
         }
         
         context.channel.close(mode: .all, promise: nil)
@@ -263,6 +263,8 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
                 context.fireErrorCaught(PingError.httpNoMatchingRequest)
                 return
             }
+            
+            self.timerScheduler.remove(key: self.latencyEntry!.seqNum)
             self.latencyEntry!.responseEnd = Date.currentTimestamp
             if self.latencyEntry!.latencyStatus == .waiting {
                 self.latencyEntry!.latencyStatus = .finished

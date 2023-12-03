@@ -33,7 +33,7 @@ final class HTTPTracingHandlerTests: XCTestCase {
         let httpOptions = LCLPing.PingConfiguration.HTTPOptions()
         let config = LCLPing.PingConfiguration(
             type: .http(httpOptions),
-            endpoint: .ipv4("127.0.0.1", 8080),
+            endpoint: .ipv4("http://127.0.0.1", 8080),
             timeout: 10
         )
         XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, httpOptions: httpOptions)).wait())
@@ -44,12 +44,12 @@ final class HTTPTracingHandlerTests: XCTestCase {
         let httpOptions = LCLPing.PingConfiguration.HTTPOptions()
         let config = LCLPing.PingConfiguration(
             type: .http(httpOptions),
-            endpoint: .ipv4("127.0.0.1", 8080),
+            endpoint: .ipv4("http://127.0.0.1", 8080),
             timeout: 10
         )
         XCTAssertNoThrow(try channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, httpOptions: httpOptions)).wait())
         channel.pipeline.fireChannelActive()
-        let httpRequest = HTTPRequestHead(version: .http1_1, method: .GET, uri: "127.0.0.1:8080/")
+        let httpRequest = HTTPRequestHead(version: .http1_1, method: .GET, uri: "http://127.0.0.1:8080/")
         try channel.writeOutbound((UInt16(2), httpRequest))
         self.loop.run()
         let head = try channel.readOutbound(as: HTTPClientRequestPart.self)
@@ -61,7 +61,7 @@ final class HTTPTracingHandlerTests: XCTestCase {
         case (.head(let request), .end(_)):
             XCTAssertEqual(request.version, HTTPVersion.http1_1)
             XCTAssertEqual(request.method, HTTPMethod.GET)
-            XCTAssertEqual(request.uri, "127.0.0.1:8080/")
+            XCTAssertEqual(request.uri, "http://127.0.0.1:8080/")
             XCTAssertEqual(request.headers, HTTPHeaders())
         default:
             XCTFail("Should receive a head and end. But received head = \(String(describing: head)), end = \(String(describing: end))")
@@ -72,12 +72,12 @@ final class HTTPTracingHandlerTests: XCTestCase {
         let httpOptions = LCLPing.PingConfiguration.HTTPOptions()
         let config = LCLPing.PingConfiguration(
             type: .http(httpOptions),
-            endpoint: .ipv4("127.0.0.1", 8080),
+            endpoint: .ipv4("http://127.0.0.1", 8080),
             timeout: 10
         )
         XCTAssertNoThrow(try channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, httpOptions: httpOptions)).wait())
         channel.pipeline.fireChannelActive()
-        let httpRequest = HTTPRequestHead(version: .http1_1, method: .GET, uri: "127.0.0.1:8080/")
+        let httpRequest = HTTPRequestHead(version: .http1_1, method: .GET, uri: "http://127.0.0.1:8080/")
         try channel.writeOutbound((UInt16(2), httpRequest))
         
         
@@ -92,6 +92,7 @@ final class HTTPTracingHandlerTests: XCTestCase {
     }
     
     
+    // Note: swift-nio doesn't support firing error while writing to outbound
 //    func testWriteOnClosedChannel() throws {
 //        let httpOptions = LCLPing.PingConfiguration.HTTPOptions()
 //        let config = LCLPing.PingConfiguration(
@@ -112,7 +113,7 @@ final class HTTPTracingHandlerTests: XCTestCase {
         let httpOptions = LCLPing.PingConfiguration.HTTPOptions()
         let config = LCLPing.PingConfiguration(
             type: .http(httpOptions),
-            endpoint: .ipv4("127.0.0.1", 8080),
+            endpoint: .ipv4("http://127.0.0.1", 8080),
             timeout: 2
         )
         let expectedError: PingError = .httpNoMatchingRequest
@@ -134,10 +135,9 @@ final class HTTPTracingHandlerTests: XCTestCase {
         let httpOptions = LCLPing.PingConfiguration.HTTPOptions()
         let config = LCLPing.PingConfiguration(
             type: .http(httpOptions),
-            endpoint: .ipv4("127.0.0.1", 8080),
+            endpoint: .ipv4("http://127.0.0.1", 8080),
             timeout: 2
         )
-        
         
         let pairs: [(UInt16, HTTPResponseStatus, LatencyEntry.Status)] = [
             (1, .ok, .finished),
@@ -160,7 +160,7 @@ final class HTTPTracingHandlerTests: XCTestCase {
             let (seqNum, responseStatus, latencyStatus) = pair
             XCTAssertNoThrow(try channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, httpOptions: httpOptions)).wait())
             channel.pipeline.fireChannelActive()
-            let httpRequest = HTTPRequestHead(version: .http1_1, method: .GET, uri: "127.0.0.1:8080/")
+            let httpRequest = HTTPRequestHead(version: .http1_1, method: .GET, uri: "http://127.0.0.1:8080/")
             let httpResponseHead = HTTPClientResponsePart.head(.init(version: .http1_1, status: responseStatus))
             let httpResponseEnd = HTTPClientResponsePart.end(nil)
             try channel.writeOutbound((seqNum, httpRequest))
@@ -185,7 +185,7 @@ final class HTTPTracingHandlerTests: XCTestCase {
         
         let configUseServerTiming = LCLPing.PingConfiguration(
             type: .http(httpOptionsUseServerTiming),
-            endpoint: .ipv4("127.0.0.1", 8080),
+            endpoint: .ipv4("http://127.0.0.1", 8080),
             timeout: 2
         )
         
@@ -197,7 +197,7 @@ final class HTTPTracingHandlerTests: XCTestCase {
             (5, ["Server-Timing": "a;dur=1.1, b;dur=2.2; c;dur=3.3, d;dur=4.4, e;dur=5.5, f;dur=6.6, g;dur=7.7, h;dur=8.8, i;dur=9.9"], 49.5)
         ]
         
-        let httpRequest = HTTPRequestHead(version: .http1_1, method: .GET, uri: "127.0.0.1:8080/")
+        let httpRequest = HTTPRequestHead(version: .http1_1, method: .GET, uri: "http://127.0.0.1:8080/")
         let httpResponseEnd = HTTPClientResponsePart.end(nil)
         for parameter in parameters {
             channel = EmbeddedChannel()
@@ -218,5 +218,30 @@ final class HTTPTracingHandlerTests: XCTestCase {
             let _ = try channel.finish(acceptAlreadyClosed: true)
             channel = nil
         }
+    }
+    
+    func testReadTimeout() throws {
+        let httpOptions = LCLPing.PingConfiguration.HTTPOptions()
+        let config = LCLPing.PingConfiguration(
+            type: .http(httpOptions),
+            endpoint: .ipv4("http://127.0.0.1", 8080),
+            timeout: 1
+        )
+        XCTAssertNoThrow(try channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, httpOptions: httpOptions)).wait())
+        channel.pipeline.fireChannelActive()
+        let httpRequest = HTTPRequestHead(version: .http1_1, method: .GET, uri: "127.0.0.1:8080/")
+        let exp = XCTestExpectation(description: "Read Tiemout")
+        try channel.writeOutbound((UInt16(2), httpRequest))
+        self.loop.run()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            self.loop.run()
+            exp.fulfill()
+        }
+        
+        let latency: LatencyEntry?
+        wait(for: [exp], timeout: 2)
+        latency = try self.channel.readInbound(as: LatencyEntry.self)
+        XCTAssertNotNil(latency)
+        XCTAssertEqual(latency!.latencyStatus, .timeout)
     }
 }
