@@ -1,0 +1,16 @@
+name: Lint code
+
+on:
+  push:
+    paths:
+      - '.github/workflows/lint.yml'
+      - '.swiftlint.yml'
+      - '**/*.swift'
+
+jobs:
+  Lint Code:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint code
+        uses: norio-nomura/action-swiftlint@3.2.1

@@ -37,9 +37,6 @@ let package = Package(
                 .product(name: "Collections", package: "swift-collections")
             ]),
         .testTarget(
-            name: "LCLPingTests",
-            dependencies: ["LCLPing"]),
-        .testTarget(
             name: "UtilitiesTests",
             dependencies: ["LCLPing"]
         ),
