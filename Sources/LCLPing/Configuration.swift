@@ -54,12 +54,20 @@ extension LCLPing {
         }
         
         public struct HTTPOptions {
-            public var useServerTiming: Bool = false
-            public var httpHeaders: [String:String] = [
+            public static let DEFAULT_HEADER: [String: String] = [
                 "User-Agent": "lclping",
                 "Accept": "application/json",
                 "Connection": "close"
             ]
+
+            public var useServerTiming: Bool = false
+            public var httpHeaders: [String:String] = DEFAULT_HEADER {
+                didSet {
+                    if httpHeaders.isEmpty {
+                        httpHeaders = HTTPOptions.DEFAULT_HEADER
+                    }
+                }
+            }
             
             public init() { }
         }

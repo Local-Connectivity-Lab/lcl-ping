@@ -173,7 +173,42 @@ final class HTTPDuplexerHandlerTests: XCTestCase {
         }
     }
     
-    // Other tests:
-    // 1. test header with other values
-    // 2.
+   func testSetupHTTPHeaders() throws {
+       let httpOptions = LCLPing.PingConfiguration.HTTPOptions()
+       let urlString = "http://127.0.0.1"
+       let config = LCLPing.PingConfiguration(
+           type: .http(httpOptions),
+           endpoint: .ipv4(urlString, 8080),
+           timeout: 10
+       )
+       let url = URL(string: urlString)!
+       let params: [[String:String]] = [
+           [
+               "A": "a",
+               "B": "b",
+               "C": "c"
+           ],
+           [:],
+       ]
+       for param in params {
+           channel = EmbeddedChannel()
+            var newHttpOptions = httpOptions
+            newHttpOptions.httpHeaders = param
+            XCTAssertNoThrow(try channel.pipeline.addHandler(HTTPDuplexer(url: url, httpOptions: newHttpOptions, configuration: config)).wait())
+            channel.pipeline.fireChannelActive()
+            try channel.writeOutbound(UInt16(2))
+            self.loop.run()
+            let outboundRead = try channel.readOutbound(as: (UInt16, HTTPRequestHead).self)
+            XCTAssertNotNil(outboundRead)
+            let (_, httpHeader) = outboundRead!
+            let target = param.isEmpty ? LCLPing.PingConfiguration.HTTPOptions.DEFAULT_HEADER : param
+            for (key, val) in target {
+                XCTAssertTrue(httpHeader.headers.contains(name: key))
+                XCTAssertEqual(httpHeader.headers.first(name: key), val)
+            }
+            
+            _ = try channel.finish(acceptAlreadyClosed: true)
+            channel = nil
+       }
+   }
 }
