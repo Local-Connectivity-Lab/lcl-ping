@@ -60,7 +60,6 @@ internal struct ICMPPing: Pingable {
         }
         
         let resolvedAddress = try SocketAddress.makeAddressResolvingHost(host, port: 0)
-        print(resolvedAddress)
         
         do {
             asyncChannel = try await DatagramBootstrap(group: group)
@@ -68,7 +67,11 @@ internal struct ICMPPing: Pingable {
                .connect(to: resolvedAddress) { channel in
                    channel.eventLoop.makeCompletedFuture {
                        try channel.pipeline.syncOperations.addHandlers(
-                           [IPDecoder(), ICMPDecoder(), ICMPDuplexer(configuration: pingConfiguration)]
+                           [
+                            IPDecoder(),
+                            ICMPDecoder(),
+                            ICMPDuplexer(configuration: pingConfiguration)
+                           ]
                        )
                        return try NIOAsyncChannel<PingResponse, ICMPOutboundIn>(wrappingChannelSynchronously: channel)
                }
@@ -98,7 +101,7 @@ internal struct ICMPPing: Pingable {
                         logger.debug("sending packet #\(cnt)")
                         print("sending packet #\(cnt)")
                         try await outbound.write((ICMPPingIdentifier, cnt))
-                        print("packet #\(cnt) finishes")
+                        print("packet #\(cnt) sent DONE")
                         cnt += 1
                     }
                 } catch is CancellationError {

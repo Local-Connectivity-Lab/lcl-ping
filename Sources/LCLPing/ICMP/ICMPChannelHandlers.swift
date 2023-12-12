@@ -47,6 +47,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
     
     /// sequence number to an optional ICMP response
     private var seqToResponse: Dictionary<UInt16, ICMPHeader?>
+    private var responseSeqNumSet: Set<UInt16>
     
     private var timerScheduler: TimerScheduler<UInt16>
     
@@ -54,6 +55,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         self.configuration = configuration
         self.seqToRequest = [:]
         self.seqToResponse = [:]
+        self.responseSeqNumSet = Set()
         self.timerScheduler = TimerScheduler()
         self.state = .inactive
     }
@@ -76,9 +78,20 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         self.timerScheduler.schedule(delay: self.configuration.timeout, key: sequenceNum) { [weak self, context] in
             if let self = self, !self.seqToResponse.keys.contains(sequenceNum) {
                 logger.debug("[\(#function)]: packet #\(sequenceNum) timed out")
-                self.seqToResponse[sequenceNum] = nil
-                context.fireChannelRead(self.wrapInboundOut(.timeout(sequenceNum)))
+                self.responseSeqNumSet.insert(sequenceNum)
+                context.eventLoop.execute {
+                    context.fireChannelRead(self.wrapInboundOut(.timeout(sequenceNum)))
+                    self.closeWhenComplete(context: context)
+                }
             }
+        }
+        logger.debug("[\(#function)]: schedule timer for # \(sequenceNum) for \(self.configuration.timeout) second")
+    }
+    
+    private func closeWhenComplete(context: ChannelHandlerContext) {
+        if self.seqToRequest.count == self.configuration.count && self.responseSeqNumSet.count == self.configuration.count {
+            logger.debug("Ping finished. Closing all channels")
+            context.close(mode: .all, promise: nil)
         }
     }
     
@@ -186,39 +199,42 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         
         self.timerScheduler.remove(key: sequenceNum)
         
-        if self.seqToResponse.keys.contains(sequenceNum) {
+        if self.responseSeqNumSet.contains(sequenceNum) {
             let pingResponse: PingResponse = self.seqToResponse[sequenceNum] == nil ? .timeout(sequenceNum) : .duplicated(sequenceNum)
+            logger.debug("[\(#function)]: response for #\(sequenceNum) is \(self.seqToResponse[sequenceNum] == nil ? "timeout" : "duplicate")")
             context.fireChannelRead(self.wrapInboundOut(pingResponse))
+            closeWhenComplete(context: context)
             return
         }
         
+        self.seqToResponse[sequenceNum] = icmpResponse
+        self.responseSeqNumSet.insert(sequenceNum)
         guard let icmpRequest = self.seqToRequest[sequenceNum] else {
             logger.error("[\(#function)]: Unable to find matching request with sequence number \(sequenceNum)")
             context.fireChannelRead(self.wrapInboundOut(.error(PingError.invalidICMPResponse)))
+            closeWhenComplete(context: context)
             return
         }
         
         if icmpResponse.checkSum != icmpResponse.calcChecksum() {
             context.fireChannelRead(self.wrapInboundOut(.error(PingError.invalidICMPChecksum)))
+            closeWhenComplete(context: context)
             return
         }
         
         if identifier != icmpRequest.idenifier {
             context.fireChannelRead(self.wrapInboundOut(.error(PingError.invalidICMPIdentifier)))
+            closeWhenComplete(context: context)
             return
         }
         
-        self.seqToResponse[sequenceNum] = icmpResponse
         let currentTimestamp = Date.currentTimestamp
         let latency = (currentTimestamp - icmpRequest.payload.timestamp) * 1000
 
         let pingResponse: PingResponse = .ok(sequenceNum, latency, currentTimestamp)
         context.fireChannelRead(self.wrapInboundOut(pingResponse))
 
-        if self.seqToRequest.count == self.configuration.count && self.seqToResponse.count == self.configuration.count {
-            logger.debug("Ping finished. Closing all channels")
-            context.close(mode: .all, promise: nil)
-        }
+        closeWhenComplete(context: context)
     }
     
     func channelActive(context: ChannelHandlerContext) {
@@ -231,6 +247,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
             assertionFailure("[\(#function)]: in an incorrect state: \(state)")
         case .inactive:
             logger.debug("[\(#function)]: Channel active")
+            context.fireChannelActive()
             self.state = .operational
         }
     }
@@ -238,6 +255,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
     func channelInactive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
+            context.fireChannelInactive()
             self.state = .inactive
             self.seqToRequest.removeAll()
             self.seqToResponse.removeAll()
@@ -421,6 +439,7 @@ internal final class ICMPDecoder: ChannelInboundHandler {
             return
         }
         context.fireChannelRead(self.wrapInboundOut(icmpResponseHeader))
+        logger.debug("[\(#function)] finish decoding icmp header: \(icmpResponseHeader)")
     }
     
     func errorCaught(context: ChannelHandlerContext, error: Error) {
