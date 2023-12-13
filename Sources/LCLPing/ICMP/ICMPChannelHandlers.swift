@@ -105,6 +105,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         
         let type = icmpResponse.type
         let code = icmpResponse.code
+        logger.debug("[\(#function)]: received icmp response with type: \(type), code: \(code)")
         switch (type, code) {
         case (ICMPType.EchoReply.rawValue, 0):
             break
@@ -196,6 +197,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         
         let sequenceNum = icmpResponse.sequenceNum
         let identifier = icmpResponse.idenifier
+        logger.debug("[\(#function)]: received icmp response with sequence number: \(sequenceNum), identifier: \(identifier)")
         
         self.timerScheduler.remove(key: sequenceNum)
         

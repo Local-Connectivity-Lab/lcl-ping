@@ -39,6 +39,14 @@ internal struct ICMPPing: Pingable {
     private var pingSummary: PingSummary?
     private var task: Task<(), Error>?
     
+#if INTEGRATION_TEST
+    private var networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration?
+    
+    internal init(networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration) {
+        self.networkLinkConfig = networkLinkConfig
+    }
+#endif
+    
     internal init() { }
     
     // TODO: implement non-async version
@@ -60,12 +68,19 @@ internal struct ICMPPing: Pingable {
         }
         
         let resolvedAddress = try SocketAddress.makeAddressResolvingHost(host, port: 0)
+#if INTEGRATION_TEST
+        let networkLinkConfig = self.networkLinkConfig!
+#endif
+        
         
         do {
             asyncChannel = try await DatagramBootstrap(group: group)
                .protocolSubtype(.init(.icmp))
                .connect(to: resolvedAddress) { channel in
                    channel.eventLoop.makeCompletedFuture {
+#if INTEGRATION_TEST
+                       try channel.pipeline.syncOperations.addHandler(TrafficControllerChannelHandler(networkLinkConfig: networkLinkConfig))
+#endif
                        try channel.pipeline.syncOperations.addHandlers(
                            [
                             IPDecoder(),

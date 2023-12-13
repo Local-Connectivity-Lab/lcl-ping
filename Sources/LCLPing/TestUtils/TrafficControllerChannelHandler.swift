@@ -131,8 +131,10 @@ class TrafficControllerChannelHandler: ChannelDuplexHandler {
         
         logger.debug("[\(#function)]: schedule to read data in \(self.networkLinkConfig.inDelay) ms")
         context.eventLoop.scheduleTask(in: .milliseconds(self.networkLinkConfig.inDelay)) {
+            context.fireChannelRead(data)
             logger.debug("[\(#function)] fireChannelRead after delaying \(self.networkLinkConfig.inDelay) ms")
         }
+
     }
 
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {

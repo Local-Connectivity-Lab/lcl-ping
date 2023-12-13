@@ -56,5 +56,9 @@ let package = Package(
             name: "HTTPChannelTests",
             dependencies: ["LCLPing"]
         )
+//        .testTarget(
+//            name: "IntegrationTests",
+//            dependencies: ["LCLPing"]
+//        )
     ]
 )
