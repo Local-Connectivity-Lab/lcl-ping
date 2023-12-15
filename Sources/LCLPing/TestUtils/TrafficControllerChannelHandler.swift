@@ -18,8 +18,9 @@ class TrafficControllerChannelHandler: ChannelDuplexHandler {
 
     class NetworkLinkConfiguration {
 
-        public static let fullyDisconnected: NetworkLinkConfiguration = .init(inPacketLoss: 1.0, outPacketLoss: 1.0, inDelay: .zero, outDelay: .zero)
+        public static let fullyDisconnected: NetworkLinkConfiguration = .init(inPacketLoss: 1.0, outPacketLoss: 1.0, inDelay: .zero, outDelay: .zero, inDuplicate: .zero)
         public static let fullyConnected: NetworkLinkConfiguration = .init()
+        public static let fullyDuplicated: NetworkLinkConfiguration = .init(inDuplicate: 1.0)
 
         private static func ensureInRange<T: Comparable>(from: T, to: T, val: T) -> T {
             return min(max(from, val), to)
@@ -46,12 +47,19 @@ class TrafficControllerChannelHandler: ChannelDuplexHandler {
                 inDelay = NetworkLinkConfiguration.ensureInRange(from: 0, to: .max, val: inDelay)
             }
         }
+        
+        private(set) var inDuplicate: Double {
+            didSet {
+                inDuplicate = NetworkLinkConfiguration.ensureInRange(from: 0.0, to: 1.0, val: inDuplicate)
+            }
+        }
 
-        init(inPacketLoss: Double = .zero, outPacketLoss: Double = .zero, inDelay: Int64 = .zero, outDelay: Int64 = .zero) {
+        init(inPacketLoss: Double = .zero, outPacketLoss: Double = .zero, inDelay: Int64 = .zero, outDelay: Int64 = .zero, inDuplicate: Double = .zero) {
             self.inPacketLoss = inPacketLoss
             self.outPacketLoss = outPacketLoss
             self.inDelay = inDelay
             self.outDelay = outDelay
+            self.inDuplicate = inDuplicate
         }
     }
 
@@ -85,7 +93,12 @@ class TrafficControllerChannelHandler: ChannelDuplexHandler {
     }
     
     private func shouldDropPacket(for possibility: Double) -> Bool {
-        let num = Double.random(in: 0.0...1.0)
+        let num = Double.random(in: 0.0..<1.0)
+        return num < possibility
+    }
+    
+    private func shouldDuplicatePacket(for possibility: Double) -> Bool {
+        let num = Double.random(in: 0.0..<1.0)
         return num < possibility
     }
 
@@ -129,9 +142,14 @@ class TrafficControllerChannelHandler: ChannelDuplexHandler {
             return
         }
         
-        logger.debug("[\(#function)]: schedule to read data in \(self.networkLinkConfig.inDelay) ms")
+        let shouldDuplicatePacket = shouldDuplicatePacket(for: self.networkLinkConfig.inDuplicate)
+        
+        logger.debug("[\(#function)]: schedule to read data in \(self.networkLinkConfig.inDelay) ms. Should duplicate: \(shouldDuplicatePacket)")
         context.eventLoop.scheduleTask(in: .milliseconds(self.networkLinkConfig.inDelay)) {
             context.fireChannelRead(data)
+            if shouldDuplicatePacket {
+                context.fireChannelRead(data)
+            }
             logger.debug("[\(#function)] fireChannelRead after delaying \(self.networkLinkConfig.inDelay) ms")
         }
 

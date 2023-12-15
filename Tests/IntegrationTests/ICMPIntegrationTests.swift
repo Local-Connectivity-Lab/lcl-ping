@@ -10,46 +10,143 @@ import XCTest
 
 #if INTEGRATION_TEST
 final class ICMPIntegrationTests: XCTestCase {
+    
+    private func runTest(networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration, pingConfig: LCLPing.PingConfiguration) async throws -> (PingState, PingSummary?) {
+        var icmpPing = ICMPPing(networkLinkConfig: networkLinkConfig)
+        try await icmpPing.start(with: pingConfig)
+        return (icmpPing.pingStatus, icmpPing.summary)
+    }
 
     func testFullyConnectedNetwork() async throws {
-//        logger.logLevel = .debug
         let fullyConnectedLink = TrafficControllerChannelHandler.NetworkLinkConfiguration.fullyConnected
         let pingConfig = LCLPing.PingConfiguration(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 10)
-        var icmpPing = ICMPPing(networkLinkConfig: fullyConnectedLink)
-        try await icmpPing.start(with: pingConfig)
-        switch icmpPing.pingStatus {
+        let (pingStatus, pingSummary) = try await runTest(networkLinkConfig: fullyConnectedLink, pingConfig: pingConfig)
+        switch pingStatus {
         case .finished:
-            let summary = icmpPing.summary
-            XCTAssertEqual(summary?.totalCount, 10)
-            XCTAssertEqual(summary?.details.isEmpty, false)
-            XCTAssertEqual(summary?.duplicates.count, 0)
-            XCTAssertEqual(summary?.timeout.count, 0)
+            XCTAssertEqual(pingSummary?.totalCount, 10)
+            XCTAssertEqual(pingSummary?.details.isEmpty, false)
+            XCTAssertEqual(pingSummary?.duplicates.count, 0)
+            XCTAssertEqual(pingSummary?.timeout.count, 0)
             for i in 0..<10 {
-                XCTAssertEqual(summary?.details[i].seqNum, UInt16(i))
+                XCTAssertEqual(pingSummary?.details[i].seqNum, UInt16(i))
             }
         default:
-            XCTFail("ICMP Test failed with status \(icmpPing.pingStatus)")
+            XCTFail("ICMP Test failed with status \(pingStatus)")
         }
     }
     
     func testFullyDisconnectedNetwork() async throws {
-//        logger.logLevel = .debug
         let fullyConnectedLink = TrafficControllerChannelHandler.NetworkLinkConfiguration.fullyDisconnected
         let pingConfig = LCLPing.PingConfiguration(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 10)
-        var icmpPing = ICMPPing(networkLinkConfig: fullyConnectedLink)
-        try await icmpPing.start(with: pingConfig)
-        switch icmpPing.pingStatus {
+        let (pingStatus, pingSummary) = try await runTest(networkLinkConfig: fullyConnectedLink, pingConfig: pingConfig)
+        switch pingStatus {
         case .finished:
-            let summary = icmpPing.summary
             for i in 0..<10 {
-                XCTAssertEqual(summary?.timeout.contains(UInt16(i)), true)
+                XCTAssertEqual(pingSummary?.timeout.contains(UInt16(i)), true)
             }
-            XCTAssertEqual(summary?.totalCount, 10)
-            XCTAssertEqual(summary?.details.isEmpty, true)
-            XCTAssertEqual(summary?.duplicates.count, 0)
-            XCTAssertEqual(summary?.timeout.count, 10)
+            XCTAssertEqual(pingSummary?.totalCount, 10)
+            XCTAssertEqual(pingSummary?.details.isEmpty, true)
+            XCTAssertEqual(pingSummary?.duplicates.count, 0)
+            XCTAssertEqual(pingSummary?.timeout.count, 10)
         default:
-            XCTFail("ICMP Test failed with status \(icmpPing.pingStatus)")
+            XCTFail("ICMP Test failed with status \(pingStatus)")
+        }
+    }
+    
+    func testUnknownHost() async throws {
+        let fullyConnectedLink = TrafficControllerChannelHandler.NetworkLinkConfiguration.fullyDisconnected
+        let pingConfig = LCLPing.PingConfiguration(type: .icmp, endpoint: .ipv4("10.10.10.127", 0), count: 10)
+        let (pingStatus, pingSummary) = try await runTest(networkLinkConfig: fullyConnectedLink, pingConfig: pingConfig)
+        switch pingStatus {
+        case .finished:
+            XCTAssertEqual(pingSummary?.timeout.count, 10)
+        default:
+            XCTFail("ICMP Test failed with status \(pingStatus)")
+        }
+    }
+    
+    func testMinorInOutPacketDrop() async throws  {
+        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.1, outPacketLoss: 0.1)
+        let pingConfig = LCLPing.PingConfiguration(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 10)
+        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink, pingConfig: pingConfig)
+        switch pingStatus {
+        case .finished:
+            ()
+        default:
+            XCTFail("ICMP Test failed with status \(pingStatus)")
+        }
+    }
+    
+    func testMediumInOutPacketDrop() async throws {
+        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.4, outPacketLoss: 0.4)
+        let pingConfig = LCLPing.PingConfiguration(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 10)
+        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink, pingConfig: pingConfig)
+        switch pingStatus {
+        case .finished:
+            ()
+        default:
+            XCTFail("ICMP Test failed with status \(pingStatus)")
+        }
+    }
+    
+    func testMinorInPacketDrop() async throws {
+        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.2)
+        let pingConfig = LCLPing.PingConfiguration(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 10)
+        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink, pingConfig: pingConfig)
+        switch pingStatus {
+        case .finished:
+            ()
+        default:
+            XCTFail("ICMP Test failed with status \(pingStatus)")
+        }
+    }
+    
+    func testMinorOutPacketDrop() async throws {
+        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(outPacketLoss: 0.2)
+        let pingConfig = LCLPing.PingConfiguration(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 10)
+        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink, pingConfig: pingConfig)
+        switch pingStatus {
+        case .finished:
+            ()
+        default:
+            XCTFail("ICMP Test failed with status \(pingStatus)")
+        }
+    }
+    
+    func testMediumInPacketDrop() async throws {
+        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.5)
+        let pingConfig = LCLPing.PingConfiguration(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 10)
+        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink, pingConfig: pingConfig)
+        switch pingStatus {
+        case .finished:
+            ()
+        default:
+            XCTFail("ICMP Test failed with status \(pingStatus)")
+        }
+    }
+    
+    func testMediumOutPacketDrop() async throws {
+        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(outPacketLoss: 0.5)
+        let pingConfig = LCLPing.PingConfiguration(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 10)
+        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink, pingConfig: pingConfig)
+        switch pingStatus {
+        case .finished:
+            ()
+        default:
+            XCTFail("ICMP Test failed with status \(pingStatus)")
+        }
+    }
+    
+    func testFullyDuplicatedNetwork() async throws {
+        logger.logLevel = .debug
+        let fullyDuplicated = TrafficControllerChannelHandler.NetworkLinkConfiguration.fullyDuplicated
+        let pingConfig = LCLPing.PingConfiguration(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 10)
+        let (pingStatus, pingSummary) = try await runTest(networkLinkConfig: fullyDuplicated, pingConfig: pingConfig)
+        switch pingStatus {
+        case .finished:
+            XCTAssertEqual(pingSummary?.duplicates.count, 9) // before the last duplicate is sent, the channel is already closed.
+        default:
+            XCTFail("ICMP Test failed with status \(pingStatus)")
         }
     }
 }
