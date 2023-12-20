@@ -24,11 +24,23 @@ public struct PingSummary: Equatable, Encodable {
     public let totalCount: Int
     public let timeout: Set<UInt16>
     public let duplicates: Set<UInt16>
+    public let errors: Set<PingErrorSummary>
     public let ipAddress: String
     public let port: Int
     public let `protocol`: CInt
 }
 
 extension PingSummary {
-    static let empty: PingSummary = .init(min: .zero, max: .zero, avg: .zero, median: .zero, stdDev: .zero, jitter: .zero, details: [], totalCount: .zero, timeout: .init(), duplicates: .init(), ipAddress: "", port: 0, protocol: 0)
+    public struct PingErrorSummary: Hashable, Encodable {
+        public static func == (lhs: PingSummary.PingErrorSummary, rhs: PingSummary.PingErrorSummary) -> Bool {
+            return lhs.seqNum == rhs.seqNum
+        }
+        
+        public let seqNum: UInt16
+        public let reason: String
+    }
+}
+
+extension PingSummary {
+    static let empty: PingSummary = .init(min: .zero, max: .zero, avg: .zero, median: .zero, stdDev: .zero, jitter: .zero, details: [], totalCount: .zero, timeout: .init(), duplicates: .init(), errors: .init(), ipAddress: "", port: 0, protocol: 0)
 }

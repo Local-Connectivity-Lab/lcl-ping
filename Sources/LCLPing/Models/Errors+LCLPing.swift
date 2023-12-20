@@ -71,6 +71,8 @@ public enum PingError: Error {
     case httpMissingSchema
     case httpUnableToEstablishTLSConnection
     case httpMissingResult
+    
+    case forTestingPurposeOnly
 }
 
 public enum RuntimeError: Error, Equatable {

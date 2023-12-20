@@ -163,7 +163,8 @@ final class HTTPDuplexerHandlerTests: XCTestCase {
             let inboundRead = try channel.readInbound(as: PingResponse.self)
             XCTAssertNotNil(inboundRead)
             switch inboundRead! {
-            case .error(let error):
+            case .error(let seqNum, let error):
+                XCTAssertEqual(seqNum, 2)
                 XCTAssertEqual(error?.localizedDescription, expectedError.localizedDescription)
             default:
                 XCTFail("Should receive PingResponse.timeout")

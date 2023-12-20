@@ -41,9 +41,11 @@ internal struct ICMPPing: Pingable {
     
 #if INTEGRATION_TEST
     private var networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration?
+    private var rewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>:AnyObject]?
     
-    internal init(networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration) {
+    internal init(networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration, rewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>:AnyObject]?) {
         self.networkLinkConfig = networkLinkConfig
+        self.rewriteHeaders = rewriteHeaders
     }
 #endif
     
@@ -70,6 +72,7 @@ internal struct ICMPPing: Pingable {
         let resolvedAddress = try SocketAddress.makeAddressResolvingHost(host, port: 0)
 #if INTEGRATION_TEST
         let networkLinkConfig = self.networkLinkConfig!
+        let rewriteHeaders = rewriteHeaders
 #endif
         
         
@@ -79,15 +82,22 @@ internal struct ICMPPing: Pingable {
                .connect(to: resolvedAddress) { channel in
                    channel.eventLoop.makeCompletedFuture {
 #if INTEGRATION_TEST
-                       try channel.pipeline.syncOperations.addHandler(TrafficControllerChannelHandler(networkLinkConfig: networkLinkConfig))
-#endif
-                       try channel.pipeline.syncOperations.addHandlers(
-                           [
-                            IPDecoder(),
-                            ICMPDecoder(),
-                            ICMPDuplexer(configuration: pingConfiguration)
-                           ]
-                       )
+                       let handlers: [ChannelHandler] = [
+                        TrafficControllerChannelHandler(networkLinkConfig: networkLinkConfig),
+                        InboundHeaderRewriter(rewriteHeaders: rewriteHeaders),
+                        IPDecoder(),
+                        ICMPDecoder(),
+                        ICMPDuplexer(configuration: pingConfiguration)
+                       ]
+#else // !INTEGRATION_TEST
+                       let handlers: [ChannelHandler] = [
+                        IPDecoder(),
+                        ICMPDecoder(),
+                        ICMPDuplexer(configuration: pingConfiguration)
+                       ]
+#endif // !INTEGRATION_TEST
+
+                       try channel.pipeline.syncOperations.addHandlers(handlers)
                        return try NIOAsyncChannel<PingResponse, ICMPOutboundIn>(wrappingChannelSynchronously: channel)
                }
            }

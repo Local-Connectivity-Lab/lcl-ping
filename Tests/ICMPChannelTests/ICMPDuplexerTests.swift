@@ -126,7 +126,8 @@ final class ICMPDuplexerTests: XCTestCase {
                 self.loop.run()
                 let inboundInResult = try channel.readInbound(as: PingResponse.self)!
                 switch inboundInResult {
-                case .error(.some(let error)):
+                case .error(.some(let seqNum), .some(let error)):
+                    XCTAssertEqual(seqNum, 2)
                     XCTAssertEqual(error.localizedDescription, expectedError.localizedDescription)
                 default:
                     XCTFail("Should receive a PingResponse.error, but received \(inboundInResult)")
@@ -147,7 +148,8 @@ final class ICMPDuplexerTests: XCTestCase {
         let inboundInResult = try channel.readInbound(as: PingResponse.self)!
         let expectedError = PingError.invalidICMPResponse
         switch inboundInResult {
-        case .error(.some(let error)):
+        case .error(.some(let seqNum), .some(let error)):
+            XCTAssertEqual(seqNum, 2)
             XCTAssertEqual(error.localizedDescription, expectedError.localizedDescription)
         default:
             XCTFail("Should receive a PingResponse.error, but received \(inboundInResult)")
@@ -165,7 +167,8 @@ final class ICMPDuplexerTests: XCTestCase {
         let inboundInResult = try channel.readInbound(as: PingResponse.self)!
         let expectedError = PingError.invalidICMPChecksum
         switch inboundInResult {
-        case .error(.some(let error)):
+        case .error(.some(let seqNum), .some(let error)):
+            XCTAssertEqual(seqNum, 2)
             XCTAssertEqual(error.localizedDescription, expectedError.localizedDescription)
         default:
             XCTFail("Should receive a PingResponse.error, but received \(inboundInResult)")
@@ -184,7 +187,8 @@ final class ICMPDuplexerTests: XCTestCase {
         let inboundInResult = try channel.readInbound(as: PingResponse.self)!
         let expectedError = PingError.invalidICMPIdentifier
         switch inboundInResult {
-        case .error(.some(let error)):
+        case .error(.some(let seqNum), .some(let error)):
+            XCTAssertEqual(seqNum, 2)
             XCTAssertEqual(error.localizedDescription, expectedError.localizedDescription)
         default:
             XCTFail("Should receive a PingResponse.error, but received \(inboundInResult)")

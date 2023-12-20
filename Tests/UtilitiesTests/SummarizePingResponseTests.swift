@@ -18,9 +18,9 @@ final class SummarizePingResponseTests: XCTestCase {
     
     private let empty: [PingResponse] = []
     private let singleValueOk: [PingResponse] = [.ok(1, 1.1, 100)]
-    private let singleValueError: [PingResponse] = [.error(nil)]
+    private let singleValueError: [PingResponse] = [.error(1, PingError.forTestingPurposeOnly)]
     private let multipleOk: [PingResponse] = [.ok(1, 1.3, 100), .ok(2, 2.3, 101), .ok(3, 3.1, 102)]
-    private let multipleOkAndError: [PingResponse] = [.ok(1, 1.3, 100), .error(nil), .ok(3, 3.1, 102), .ok(4, 4.2, 103)]
+    private let multipleOkAndError: [PingResponse] = [.ok(1, 1.3, 100), .error(2, PingError.forTestingPurposeOnly), .ok(3, 3.1, 102), .ok(4, 4.2, 103)]
     private let multpleOkAndDuplicates: [PingResponse] = [
         .ok(1, 1.3, 100),
         .duplicated(1),
@@ -42,7 +42,7 @@ final class SummarizePingResponseTests: XCTestCase {
         .duplicated(1),
         .ok(2, 2.2, 102),
         .duplicated(2),
-        .error(nil),
+        .error(3, PingError.forTestingPurposeOnly),
         .ok(4, 1.4, 104),
         .duplicated(3),
         .timeout(5),
@@ -78,30 +78,30 @@ final class SummarizePingResponseTests: XCTestCase {
         .timeout(4),
     ]
     private let allErrors: [PingResponse] = [
-        .error(nil),
-        .error(nil),
-        .error(nil),
-        .error(nil),
-        .error(nil),
-        .error(nil)
+        .error(1, PingError.forTestingPurposeOnly),
+        .error(2, PingError.forTestingPurposeOnly),
+        .error(3, PingError.forTestingPurposeOnly),
+        .error(4, PingError.forTestingPurposeOnly),
+        .error(5, PingError.forTestingPurposeOnly),
+        .error(6, PingError.forTestingPurposeOnly)
     ]
     
     private let host = try! SocketAddress(ipAddress: "127.0.0.1", port: 80)
     
     func testEmpty() {
         let result = summarizePingResponse(empty, host: host)
-        let target = PingSummary(min: .greatestFiniteMagnitude, max: .zero, avg: .zero, median: .zero, stdDev: .zero, jitter: 0.0, details: [], totalCount: 0, timeout: Set(), duplicates: Set(), ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
+        let target = PingSummary(min: .greatestFiniteMagnitude, max: .zero, avg: .zero, median: .zero, stdDev: .zero, jitter: 0.0, details: [], totalCount: 0, timeout: Set(), duplicates: Set(), errors: Set(), ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
         
         XCTAssertEqual(result, target)
     }
 
     func testOneValue() {
         let resultOk = summarizePingResponse(singleValueOk, host: host)
-        let targetOk = PingSummary(min: 1.1, max: 1.1, avg: 1.1, median: 1.1, stdDev: 0.0, jitter: 0.0, details: [.init(seqNum: 1, latency: 1.1, timestamp: 100)], totalCount: 1, timeout: Set(), duplicates: Set(), ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
+        let targetOk = PingSummary(min: 1.1, max: 1.1, avg: 1.1, median: 1.1, stdDev: 0.0, jitter: 0.0, details: [.init(seqNum: 1, latency: 1.1, timestamp: 100)], totalCount: 1, timeout: Set(), duplicates: Set(), errors: [], ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
         XCTAssertEqual(resultOk, targetOk)
         
         let resultError = summarizePingResponse(singleValueError, host: host)
-        let targetError = PingSummary(min: .greatestFiniteMagnitude, max: .zero, avg: .zero, median: .zero, stdDev: .zero, jitter: .zero, details: [], totalCount: 1, timeout: Set(), duplicates: Set(), ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
+        let targetError = PingSummary(min: .greatestFiniteMagnitude, max: .zero, avg: .zero, median: .zero, stdDev: .zero, jitter: .zero, details: [], totalCount: 1, timeout: Set(), duplicates: Set(), errors: [.init(seqNum: 1, reason: PingError.forTestingPurposeOnly.localizedDescription)], ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
         XCTAssertEqual(resultError, targetError)
     }
     
@@ -118,6 +118,7 @@ final class SummarizePingResponseTests: XCTestCase {
                                            totalCount: 3,
                                            timeout: Set(),
                                            duplicates: Set(),
+                                           errors: Set(),
                                            ipAddress: host.ipAddress!,
                                            port: 80,
                                            protocol: host.protocol.rawValue
@@ -126,6 +127,9 @@ final class SummarizePingResponseTests: XCTestCase {
         
         let resultMultipleOkAndError = summarizePingResponse(multipleOkAndError, host: host)
         let multipleOkAndErrorPingResults: [PingResult] = [.init(seqNum: 1, latency: 1.3, timestamp: 100), .init(seqNum: 3, latency: 3.1, timestamp: 102), .init(seqNum: 4, latency: 4.2, timestamp: 103)]
+        let multipleOkAndErrorErrors: Set<PingSummary.PingErrorSummary> = [
+            .init(seqNum: 2, reason: PingError.forTestingPurposeOnly.localizedDescription)
+        ]
         let targetMultipleOkAndError = PingSummary(min: 1.3,
                                                    max: 4.2,
                                                    avg: multipleOkAndErrorPingResults.avg,
@@ -134,7 +138,9 @@ final class SummarizePingResponseTests: XCTestCase {
                                                    jitter: computeJitter(multipleOkAndErrorPingResults),
                                                    details: multipleOkAndErrorPingResults,
                                                    totalCount: 4,
-                                                   timeout: Set(), duplicates: Set(), ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
+                                                   timeout: Set(), duplicates: Set(),
+                                                   errors: multipleOkAndErrorErrors,
+                                                   ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
         XCTAssertEqual(resultMultipleOkAndError, targetMultipleOkAndError)
     }
     
@@ -151,7 +157,7 @@ final class SummarizePingResponseTests: XCTestCase {
                                                         stdDev: multipleOkAndDuplicates.stdDev,
                                                         jitter: computeJitter(multipleOkAndDuplicates),
                                                         details: multipleOkAndDuplicates, totalCount: 2, timeout: Set(),
-                                                        duplicates: Set([1]),
+                                                        duplicates: Set([1]), errors: Set(),
                                                         ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
         
         XCTAssertEqual(resultMultipleOkAndDuplicates, targetMultipleOkAndDuplicates)
@@ -171,7 +177,7 @@ final class SummarizePingResponseTests: XCTestCase {
                                                         stdDev: multipleOkAndTimeouts.stdDev,
                                                         jitter: computeJitter(multipleOkAndTimeouts),
                                                         details: multipleOkAndTimeouts, totalCount: 7, timeout: Set([2,4,5,7]),
-                                                        duplicates: Set(),
+                                                      duplicates: Set(), errors: Set(),
                                                         ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
         
         XCTAssertEqual(resultMultipleOkAndTimeouts, targetMultipleOkAndTimeouts)
@@ -189,7 +195,7 @@ final class SummarizePingResponseTests: XCTestCase {
                                             details: allTimeouts,
                                             totalCount: 8,
                                             timeout: Set([1,2,3,4,5,6,7,8]),
-                                            duplicates: Set(),
+                                            duplicates: Set(), errors: Set(),
                                                         ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
         
         XCTAssertEqual(resultAllTimeouts, targetAllTimeouts)
@@ -207,7 +213,7 @@ final class SummarizePingResponseTests: XCTestCase {
                                             details: timeoutsDuplicates,
                                             totalCount: 4,
                                             timeout: Set([1,2,3,4]),
-                                            duplicates: Set(),
+                                                   duplicates: Set(), errors: Set(),
                                                         ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
         
         XCTAssertEqual(resultTimeoutsDuplicates, targetTimeoutsDuplicates)
@@ -216,6 +222,14 @@ final class SummarizePingResponseTests: XCTestCase {
     func testAllErrors() {
         let resultAllErrors = summarizePingResponse(allErrors, host: host)
         let allErrorsPingResult = [PingResult]()
+        let allErrorsErrorSummaries: Set<PingSummary.PingErrorSummary> = [
+            .init(seqNum: 1, reason: PingError.forTestingPurposeOnly.localizedDescription),
+            .init(seqNum: 2, reason: PingError.forTestingPurposeOnly.localizedDescription),
+            .init(seqNum: 3, reason: PingError.forTestingPurposeOnly.localizedDescription),
+            .init(seqNum: 4, reason: PingError.forTestingPurposeOnly.localizedDescription),
+            .init(seqNum: 5, reason: PingError.forTestingPurposeOnly.localizedDescription),
+            .init(seqNum: 6, reason: PingError.forTestingPurposeOnly.localizedDescription)
+        ]
         let targetAllErrors = PingSummary(min: .greatestFiniteMagnitude,
                                             max: .zero,
                                             avg: .zero,
@@ -225,7 +239,7 @@ final class SummarizePingResponseTests: XCTestCase {
                                             details: allErrorsPingResult,
                                             totalCount: 6,
                                             timeout: Set(),
-                                            duplicates: Set(),
+                                          duplicates: Set(), errors: allErrorsErrorSummaries,
                                                         ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
         
         XCTAssertEqual(resultAllErrors, targetAllErrors)
@@ -240,6 +254,9 @@ final class SummarizePingResponseTests: XCTestCase {
             PingResult(seqNum: 7, latency: 3.6, timestamp: 107),
             PingResult(seqNum: 10, latency: 5.9, timestamp: 110)
         ]
+        let mixedErrorSummaries: Set<PingSummary.PingErrorSummary> = [
+            .init(seqNum: 3, reason: PingError.forTestingPurposeOnly.localizedDescription)
+        ]
         let targetMixed = PingSummary(min: 1.4,
                                       max: 5.9,
                                       avg: mixedPingResults.avg,
@@ -249,7 +266,7 @@ final class SummarizePingResponseTests: XCTestCase {
                                       details: mixedPingResults,
                                       totalCount: 10,
                                       timeout: Set([1,5,8,9]),
-                                      duplicates: Set([1,2,3,7]),
+                                      duplicates: Set([1,2,3,7]), errors: mixedErrorSummaries,
                                       ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
         
         XCTAssertEqual(resultMixed, targetMixed)

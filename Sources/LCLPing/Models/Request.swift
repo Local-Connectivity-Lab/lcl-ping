@@ -105,7 +105,3 @@ internal enum ICMPType: UInt8 {
     /// ICMP Reply from host
     case EchoReply = 0
 }
-
-internal struct HTTPRequest {
-    
-}

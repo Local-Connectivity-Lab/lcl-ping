@@ -78,12 +78,12 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
     }
     
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
+        let sequenceNumber = self.unwrapOutboundIn(data)
         guard self.state.isOperational else {
-            context.fireChannelRead(self.wrapInboundOut(.error(ChannelError.ioOnClosedChannel)))
+            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNumber, ChannelError.ioOnClosedChannel)))
             return
         }
         
-        let sequenceNumber = self.unwrapOutboundIn(data)
         var header = HTTPHeaders(self.httpOptions.httpHeaders.map { ($0.key, $0.value) })
         if !self.httpOptions.httpHeaders.keys.contains("Host"), let host = self.url.host {
             header.add(name: "Host", value: host)
@@ -115,17 +115,17 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
                 self.state = .error
                 fatalError("HTTP Handler in some error state while the status code is \(statusCode). Please report this to the developer")
             case 300...399:
-                context.fireChannelRead(self.wrapInboundOut(.error(PingError.httpRedirect)))
+                context.fireChannelRead(self.wrapInboundOut(.error(latencyEntry.seqNum, PingError.httpRedirect)))
             case 400...499:
-                context.fireChannelRead(self.wrapInboundOut(.error(PingError.httpClientError)))
+                context.fireChannelRead(self.wrapInboundOut(.error(latencyEntry.seqNum, PingError.httpClientError)))
             case 500...599:
-                context.fireChannelRead(self.wrapInboundOut(.error(PingError.httpServerError)))
+                context.fireChannelRead(self.wrapInboundOut(.error(latencyEntry.seqNum, PingError.httpServerError)))
             default:
-                context.fireChannelRead(self.wrapInboundOut(.error(PingError.httpUnknownStatus(statusCode))))
+                context.fireChannelRead(self.wrapInboundOut(.error(latencyEntry.seqNum, PingError.httpUnknownStatus(statusCode))))
             }
         case .waiting:
             self.state = .error
-            context.fireChannelRead(self.wrapInboundOut(.error(PingError.invalidLatencyResponseState)))
+            context.fireChannelRead(self.wrapInboundOut(.error(latencyEntry.seqNum, PingError.invalidLatencyResponseState)))
         }
         
         context.channel.close(mode: .all, promise: nil)
@@ -138,7 +138,7 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
             return
         }
         self.state = .error
-        let pingResponse: PingResponse = .error(error)
+        let pingResponse: PingResponse = .error(nil, error)
         context.fireChannelRead(self.wrapInboundOut(pingResponse))
         context.channel.close(mode: .all, promise: nil)
     }
@@ -466,13 +466,13 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
                 self.continuation?.yield(.timeout(taskToSeqNum[taskIdentifier]!))
             default:
                 logger.debug("task \(taskIdentifier) has error: \(urlError.localizedDescription)")
-                self.continuation?.yield(.error(urlError))
+                self.continuation?.yield(.error(UInt16(taskIdentifier), urlError))
             }
             
         } else {
             // no error, let's check the data received
             guard let response = task.response else {
-                self.continuation?.yield(.error(PingError.httpNoResponse))
+                self.continuation?.yield(.error(UInt16(taskIdentifier), PingError.httpNoResponse))
                 logger.debug("request #\(taskIdentifier) doesnt have response")
                 return
             }
@@ -488,7 +488,7 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
                     self.continuation?.yield(.ok(seqNum, latency, Date.currentTimestamp))
                 }
             default:
-                self.continuation?.yield(.error(PingError.httpRequestFailed(statusCode)))
+                self.continuation?.yield(.error(UInt16(taskIdentifier), PingError.httpRequestFailed(statusCode)))
             }
             
             // completes the async stream

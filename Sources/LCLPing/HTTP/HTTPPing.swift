@@ -39,6 +39,14 @@ internal struct HTTPPing: Pingable {
     private var pingSummary: PingSummary?
     private let httpOptions: LCLPing.PingConfiguration.HTTPOptions
     
+#if INTEGRATION_TEST
+    private var networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration?
+    internal init(httpOptions: LCLPing.PingConfiguration.HTTPOptions, networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration) {
+        self.httpOptions = httpOptions
+        self.networkLinkConfig = networkLinkConfig
+    }
+#endif
+    
     internal init(httpOptions: LCLPing.PingConfiguration.HTTPOptions) {
         self.httpOptions = httpOptions
     }
@@ -74,6 +82,9 @@ internal struct HTTPPing: Pingable {
         }
         
         let httpOptions = self.httpOptions
+#if INTEGRATION_TEST
+        let networkLinkConfig = self.networkLinkConfig
+#endif
         let enableTLS = schema == "https"
         port = enableTLS && port == 80 ? 443 : port
         let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
@@ -82,6 +93,7 @@ internal struct HTTPPing: Pingable {
         }
         
         let resolvedAddress = try SocketAddress.makeAddressResolvingHost(host, port: Int(port))
+        logger.debug("resolved address is \(resolvedAddress)")
         
         pingStatus = .running
         do {
@@ -94,34 +106,46 @@ internal struct HTTPPing: Pingable {
                         group.cancelAll()
                         return pingResponses
                     }
-
+                    
+                    logger.debug("added task #\(cnt)")
                     group.addTask {
-                        let asyncChannel = try await ClientBootstrap(group: eventLoopGroup).connect(to: resolvedAddress) { channel in
-                            channel.eventLoop.makeCompletedFuture {
-                                if enableTLS {
-                                    do {
-                                        let tlsConfiguration = TLSConfiguration.makeClientConfiguration()
-                                        let sslContext = try NIOSSLContext(configuration: tlsConfiguration)
-                                        let tlsHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: host)
-                                        try channel.pipeline.syncOperations.addHandlers(tlsHandler)
-                                    } catch {
-                                        throw PingError.httpUnableToEstablishTLSConnection
-                                    }
+                        var asyncChannel: NIOAsyncChannel<PingResponse, HTTPOutboundIn>
+                        let channel = try await ClientBootstrap(group: eventLoopGroup).connect(to: resolvedAddress).get()
+                        logger.debug("in event loop: \(channel.eventLoop.inEventLoop)")
+                        asyncChannel = try await channel.eventLoop.submit {
+                            if enableTLS {
+                                do {
+                                    let tlsConfiguration = TLSConfiguration.makeClientConfiguration()
+                                    let sslContext = try NIOSSLContext(configuration: tlsConfiguration)
+                                    let tlsHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: host)
+                                    try channel.pipeline.syncOperations.addHandlers(tlsHandler)
+                                } catch {
+                                    throw PingError.httpUnableToEstablishTLSConnection
                                 }
-                                
-                                try channel.pipeline.syncOperations.addHTTPClientHandlers(position: .last)
-                                try channel.pipeline.syncOperations.addHandlers([HTTPTracingHandler(configuration: pingConfiguration, httpOptions: httpOptions), HTTPDuplexer(url: url, httpOptions: httpOptions, configuration: pingConfiguration)], position: .last)
-                                
-                                return try NIOAsyncChannel<PingResponse, HTTPOutboundIn>(wrappingChannelSynchronously: channel)
                             }
-                        }
+
+#if INTEGRATION_TEST
+                            try channel.pipeline.syncOperations.addHandler(TrafficControllerChannelHandler(networkLinkConfig: networkLinkConfig!))
+#endif
+
+                            try channel.pipeline.syncOperations.addHTTPClientHandlers(position: .last)
+                            try channel.pipeline.syncOperations.addHandlers([HTTPTracingHandler(configuration: pingConfiguration, httpOptions: httpOptions), HTTPDuplexer(url: url, httpOptions: httpOptions, configuration: pingConfiguration)], position: .last)
+
+                            return try NIOAsyncChannel<PingResponse, HTTPOutboundIn>(wrappingChannelSynchronously: channel)
+                        }.get()
+                        asyncChannel.channel.pipeline.fireChannelActive()
                         
-                        // Task.sleep respects cooperative cancellation. That is, it will throw a cancellation error and finish early if its current task is cancelled.
+                        logger.debug("pipeline is: \(asyncChannel.channel.pipeline.debugDescription)")
+                        
+                        // NOTE: Task.sleep respects cooperative cancellation. That is, it will throw a cancellation error and finish early if its current task is cancelled.
                         try await Task.sleep(nanoseconds: UInt64(cnt) * pingConfiguration.interval.nanosecond)
-//                        logger.trace("write packet #\(cnt)")
+                        logger.debug("write packet #\(cnt)")
                         let result = try await asyncChannel.executeThenClose { inbound, outbound in
                             try await outbound.write(cnt)
-                            
+                            defer {
+                                outbound.finish()
+                            }
+
                             var asyncItr = inbound.makeAsyncIterator()
                             guard let next = try await asyncItr.next() else {
                                 throw PingError.httpMissingResult
@@ -132,14 +156,16 @@ internal struct HTTPPing: Pingable {
                         return result
                     }
                 }
-                
+                logger.debug("now waiting to receive data from the channel")
                 do {
                     while pingStatus != .stopped, let next = try await group.next() {
+                        logger.debug("received \(next)")
                         pingResponses.append(next)
                     }
                 } catch is CancellationError {
-                    logger.info("Task is cancelled while waiting")
+                    logger.debug("Task is cancelled while waiting")
                 } catch {
+                    print("received error: \(error)")
                     throw error
                 }
                 

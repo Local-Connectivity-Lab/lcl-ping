@@ -19,10 +19,10 @@ internal enum PingResponse: Equatable {
             return lSequenceNum == rSequenceNum && lLatency == rLatency && lTime == rTime
         case (PingResponse.duplicated(let lSequenceNum), PingResponse.duplicated(let rSequenceNum)):
             return lSequenceNum == rSequenceNum
-        case (PingResponse.timeout(let lSequenceNun), PingResponse.timeout(let rSequenceNum)):
-            return lSequenceNun == rSequenceNum
-        case (PingResponse.error(.some(let lError)), PingResponse.error(.some(let rError))):
-            return lError.localizedDescription == rError.localizedDescription
+        case (PingResponse.timeout(let lSequenceNum), PingResponse.timeout(let rSequenceNum)):
+            return lSequenceNum == rSequenceNum
+        case (PingResponse.error(.some(let lSequenceNum), .some(let lError)), PingResponse.error(.some(let rSequenceNum), .some(let rError))):
+            return lError.localizedDescription == rError.localizedDescription && lSequenceNum == rSequenceNum
         default:
             return false
         }
@@ -31,5 +31,5 @@ internal enum PingResponse: Equatable {
     case ok(UInt16, Double, TimeInterval)
     case duplicated(UInt16)
     case timeout(UInt16)
-    case error(Error?)
+    case error(UInt16?, Error?)
 }
