@@ -49,7 +49,7 @@ def get():
 
 @app.route("/server-timing", methods=['GET'])
 def get_server_timing():
-    use_empty_server_timing = request.headers.get("Use-Empty-Server-Timing", False)
+    use_empty_server_timing = request.headers.get("Use-Empty-Server-Timing", "False")
     use_empty_server_timing = use_empty_server_timing.lower() in ['true', 'yes']
 
     num_server_timing_metrics = request.headers.get("Number-Of-Metrics", 1)
@@ -60,7 +60,7 @@ def get_server_timing():
     desired_status_code = request.headers.get("Status-Code", 200)
     
     response = _generate_response(desired_status_code=desired_status_code)
-    if use_empty_server_timing:
+    if not use_empty_server_timing:
         response.headers.set("Server-Timing", "")
     else:
         res = ""
@@ -73,5 +73,6 @@ def get_server_timing():
             if i != num_server_timing_metrics - 1:
                 res += ", "
         response.headers.set("Server-Timing", res)
+    print(f"response header is {response.headers}")
     return response
         
