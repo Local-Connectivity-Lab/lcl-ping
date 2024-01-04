@@ -95,6 +95,10 @@ internal struct HTTPPing: Pingable {
         let resolvedAddress = try SocketAddress.makeAddressResolvingHost(host, port: Int(port))
         logger.debug("resolved address is \(resolvedAddress)")
         
+        if pingStatus == .stopped || pingStatus == .error {
+            return
+        }
+        
         pingStatus = .running
         do {
             let pingResponses = try await withThrowingTaskGroup(of: PingResponse.self, returning: [PingResponse].self) { group in
@@ -133,6 +137,7 @@ internal struct HTTPPing: Pingable {
 
                             return try NIOAsyncChannel<PingResponse, HTTPOutboundIn>(wrappingChannelSynchronously: channel)
                         }.get()
+                        
                         asyncChannel.channel.pipeline.fireChannelActive()
                         
                         logger.debug("pipeline is: \(asyncChannel.channel.pipeline.debugDescription)")

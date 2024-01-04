@@ -75,6 +75,9 @@ internal struct ICMPPing: Pingable {
         let rewriteHeaders = rewriteHeaders
 #endif
         
+        if pingStatus == .stopped || pingStatus == .error {
+            return
+        }
         
         do {
             asyncChannel = try await DatagramBootstrap(group: group)
