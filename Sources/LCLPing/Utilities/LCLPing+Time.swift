@@ -24,6 +24,11 @@ extension Date {
         }
     }
     
+    /// Create a string representation of the given date in "MM/dd/yyyy HH:mm:ss" format, with the given time zone
+    /// - Parameters
+    ///     - timeInterval: the time interval, in second, since 01/01/1970.
+    ///     - timeZone: the time zone at which the string representation will be converted to
+    /// - Return: a string representation of the the given time.
     static func toDateString(timeInterval: TimeInterval, timeZone: TimeZone? = nil) -> String {
         let formatter = DateFormatter()
         if let timeZone = timeZone {

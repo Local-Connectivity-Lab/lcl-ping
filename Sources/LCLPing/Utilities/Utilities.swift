@@ -13,6 +13,10 @@
 import Foundation
 import NIOCore
 
+/// Find and sum up the server timing fields in the HTTP header string
+/// - Parameters:
+///     - field: the http header field, in String, from which the `Server-Timing` field is queried.
+/// - Returns: the sum of all attributes in the `Server-Timing` field in the given field string.
 internal func matchServerTiming(field: String) -> Double {
     var totalTiming: Double = 0.0
     if #available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *) {
@@ -39,11 +43,19 @@ internal func matchServerTiming(field: String) -> Double {
     return totalTiming
 }
 
-
+/// Calculate the size of a given type considering it memory layout
+/// - Parameters:
+///     - type: the type on which the size will be calculated
+/// - Returns: the size of the given type, in Int.
 internal func sizeof<T>(_ type: T.Type) -> Int {
     return MemoryLayout<T>.size
 }
 
+/// Summarize all ping responses after measuring the reachability from the given host.
+/// - Parameters:
+///     - pingResponses: a list of `PingResponse` generated from the test
+///     - host: the target host where the ping test is issued
+/// - Returns: a summary of ping test (`PingSummary`).
 internal func summarizePingResponse(_ pingResponses: [PingResponse], host: SocketAddress) -> PingSummary {
     var localMin: Double = .greatestFiniteMagnitude
     var localMax: Double = .zero

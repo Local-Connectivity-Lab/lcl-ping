@@ -14,6 +14,8 @@ import Foundation
 
 
 extension Array where Element == PingResult {
+
+    /// Average of the given array of `PingResult`
     var avg: Double {
         if isEmpty {
             return 0.0
@@ -26,6 +28,7 @@ extension Array where Element == PingResult {
         return sum / Double(count)
     }
     
+    /// Median of the given array of `PingResult`
     var median: Double {
         if isEmpty {
             return 0
@@ -42,6 +45,7 @@ extension Array where Element == PingResult {
         
     }
     
+    /// Standard Deviation of the given array of `PingResult`
     var stdDev: Double {
         if isEmpty || count == 1 {
             return 0.0

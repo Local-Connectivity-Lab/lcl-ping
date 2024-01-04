@@ -14,18 +14,30 @@ import Foundation
 import NIOHTTP1
 
 extension LCLPing {
+
+    /// The options that controls the overall behaviors of the LCLPing instance.
     public struct Options {
+        /// Whether or not to output more information when the test is running. Default is false.
         public var verbose = false
         #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        /// Whether or not to use native URLSession implementation on Apple Platform if HTTP Ping test is selected.
+        /// If ICMP Ping test is selected, then setting this variable results in an no-op.
         public var useNative = false
         #endif
         
         #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        /// Initialize the `Options` with given verbose level and given selections on HTTP implementation for HTTP Ping test.
+        /// - Parameters:
+        ///     - verbose: a boolean value indicating whether to output verbosely or not.
+        ///     - useNative: a boolean value indicating whether to use native URLSession on Apple Platform or not.
         public init(verbose: Bool = false, useNative: Bool = false) {
             self.verbose = verbose
             self.useNative = useNative
         }
         #else // !(os(macOS) || os(iOS) || os(watchOS) || os(tvOS))
+        /// Initialize the `Options` with given verbose level.
+        /// - Parameters:
+        ///     - verbose: a boolean value indicating whether to output verbosely or not.
         public init(verbose: Bool = false) {
             self.verbose = verbose
         }
@@ -48,12 +60,18 @@ extension LCLPing {
             case ipv6(String)
         }
         
+        /// Ping Type supported by LCLPing
         public enum PingType {
+            /// Internet Control Message Protocol (ICMP) for IPv4 (RFC 792). IPv6 is currently not supported.
             case icmp
+
+            /// Hypertext Transfer Protocol (HTTP) with a `HTTPOptions`.
             case http(HTTPOptions)
         }
         
+        /// The configuration that defines the various behaviors of HTTP Ping test.
         public struct HTTPOptions {
+            /// The default header used by LCLPing when sending HTTP request to the target destination.
             public static let DEFAULT_HEADER: [String: String] = [
                 "User-Agent": "lclping",
                 "Accept": "application/json",
@@ -88,15 +106,15 @@ extension LCLPing {
         public var endpoint: IP
         
         /// Total number of packets sent. Default to 10 times.
-        public var count: UInt16 = 10
+        public var count: UInt16
         
         /// The wait time, in second, between sending consecutive packet. Default is 1s.
-        public var interval: TimeInterval = 1
+        public var interval: TimeInterval
         
         /// IP Time To Live for outgoing packets. Default is 64.
-        public var timeToLive: UInt16 = 64
+        public var timeToLive: UInt16
         
         /// Time, in second, to wait for a reply for each packet sent. Default is 1s.
-        public var timeout: TimeInterval = 1
+        public var timeout: TimeInterval
     }
 }
