@@ -19,6 +19,7 @@ public enum PingError: Error {
     case hostConnectionError(Error)
     case sendPingFailed(Error)
     case invalidLatencyResponseState
+    case taskIsCancelled
     
     case failedToInitialzeChannel
     case invalidICMPResponse

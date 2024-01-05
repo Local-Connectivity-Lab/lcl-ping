@@ -101,7 +101,7 @@ internal struct HTTPPing: Pingable {
         
         pingStatus = .running
         do {
-            let pingResponses = try await withThrowingTaskGroup(of: PingResponse.self, returning: [PingResponse].self) { group in
+            let pingResponses = try await withThrowingTaskGroup(of: PingResponse?.self, returning: [PingResponse].self) { group in
                 var pingResponses: [PingResponse] = []
                 
                 for cnt in 0..<pingConfiguration.count {
@@ -112,11 +112,17 @@ internal struct HTTPPing: Pingable {
                     }
                     
                     logger.debug("added task #\(cnt)")
-                    group.addTask {
-                        var asyncChannel: NIOAsyncChannel<PingResponse, HTTPOutboundIn>
+                    _ = group.addTaskUnlessCancelled {
+                        // NOTE: Task.sleep respects cooperative cancellation. That is, it will throw a cancellation error and finish early if its current task is cancelled.
+                        try await Task.sleep(nanoseconds: UInt64(cnt) * pingConfiguration.interval.nanosecond)
+                        
+                        guard Task.isCancelled == false else {
+                            return nil
+                        }
+
                         let channel = try await ClientBootstrap(group: eventLoopGroup).connect(to: resolvedAddress).get()
                         logger.debug("in event loop: \(channel.eventLoop.inEventLoop)")
-                        asyncChannel = try await channel.eventLoop.submit {
+                        let asyncChannel: NIOAsyncChannel<PingResponse, HTTPOutboundIn> = try await channel.eventLoop.submit {
                             if enableTLS {
                                 do {
                                     let tlsConfiguration = TLSConfiguration.makeClientConfiguration()
@@ -142,9 +148,8 @@ internal struct HTTPPing: Pingable {
                         
                         logger.debug("pipeline is: \(asyncChannel.channel.pipeline.debugDescription)")
                         
-                        // NOTE: Task.sleep respects cooperative cancellation. That is, it will throw a cancellation error and finish early if its current task is cancelled.
-                        try await Task.sleep(nanoseconds: UInt64(cnt) * pingConfiguration.interval.nanosecond)
                         logger.debug("write packet #\(cnt)")
+                        
                         let result = try await asyncChannel.executeThenClose { inbound, outbound in
                             try await outbound.write(cnt)
                             defer {
@@ -152,18 +157,19 @@ internal struct HTTPPing: Pingable {
                             }
 
                             var asyncItr = inbound.makeAsyncIterator()
-                            guard let next = try await asyncItr.next() else {
-                                throw PingError.httpMissingResult
-                            }
-                            return next
+                            return try await asyncItr.next()
                         }
-                        
+
+                        logger.debug("async channel received result: \(String(describing: result))")
                         return result
                     }
                 }
-                logger.debug("now waiting to receive data from the channel")
+
                 do {
                     while pingStatus != .stopped, let next = try await group.next() {
+                        guard let next = next else {
+                            continue
+                        }
                         logger.debug("received \(next)")
                         pingResponses.append(next)
                     }
@@ -181,7 +187,7 @@ internal struct HTTPPing: Pingable {
                 
                 return pingResponses
             }
-            
+            logger.debug("received result from the channel: \(pingResponses)")
             switch pingStatus {
             case .running:
                 pingStatus = .finished

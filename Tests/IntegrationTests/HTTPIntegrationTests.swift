@@ -14,7 +14,7 @@ import XCTest
 import NIOCore
 @testable import LCLPing
 
-#if INTEGRATION_TEST
+#if INTEGRATION_TEST && (os(macOS) || os(iOS) || os(watchOS) || os(tvOS) || swift(>=5.5))
 final class HTTPIntegrationTests: XCTestCase {
     
     private func runTest(
@@ -108,7 +108,6 @@ final class HTTPIntegrationTests: XCTestCase {
     }
 
     func testMinorInOutPacketDrop() async throws  {
-        throw XCTSkip("Skipped: re-enable test after https://github.com/apple/swift-nio/issues/2612 is fixed")
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.1, outPacketLoss: 0.1)
         let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
         switch pingStatus {
@@ -118,7 +117,7 @@ final class HTTPIntegrationTests: XCTestCase {
             XCTFail("HTTP Test failed with status \(pingStatus)")
         }
     }
-    
+
     func testCorrectStatusCode() async throws {
         for param in [(statusCode: 200, ok: true), (statusCode: 201, ok: true), (statusCode: 301, ok: false), (statusCode: 404, ok: false), (statusCode: 410, ok: false), (statusCode: 500, ok: false), (statusCode: 505, ok: false)] {
             var httpOptions = LCLPing.PingConfiguration.HTTPOptions()
@@ -165,7 +164,7 @@ final class HTTPIntegrationTests: XCTestCase {
             }
         }
     }
-    
+
     func testBasicServerTiming() async throws {
         var httpOptions = LCLPing.PingConfiguration.HTTPOptions()
         let desiredHeaders = [
@@ -189,7 +188,7 @@ final class HTTPIntegrationTests: XCTestCase {
             XCTFail("HTTP Test failed with status \(pingStatus)")
         }
     }
-    
+
     func testEmptyServerTimingField() async throws {
         var httpOptions = LCLPing.PingConfiguration.HTTPOptions()
         let desiredHeaders = [
@@ -213,7 +212,7 @@ final class HTTPIntegrationTests: XCTestCase {
             XCTFail("HTTP Test failed with status \(pingStatus)")
         }
     }
-    
+
     func testMultipleServerTimingFields() async throws {
         var httpOptions = LCLPing.PingConfiguration.HTTPOptions()
         let desiredHeaders = [
@@ -237,7 +236,7 @@ final class HTTPIntegrationTests: XCTestCase {
             XCTFail("HTTP Test failed with status \(pingStatus)")
         }
     }
-    
+
     func testCancelBeforeTestStarts() async throws {
         let networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected
         let pingConfig: LCLPing.PingConfiguration = .init(type: .http(LCLPing.PingConfiguration.HTTPOptions()), endpoint: .ipv4("http://127.0.0.1", 8080))
@@ -257,38 +256,37 @@ final class HTTPIntegrationTests: XCTestCase {
         }
     }
     
-//    @MainActor
-//    func testCancelDuringTest() async throws {
-//        throw XCTSkip("Skipped: the following test after https://github.com/apple/swift-nio/issues/2612 is fixed")
-//        for waitSecond in [2, 4, 5, 6, 7, 9] {
-//            let networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected
-//            let pingConfig: LCLPing.PingConfiguration = .init(type: .http(LCLPing.PingConfiguration.HTTPOptions()), endpoint: .ipv4("http://127.0.0.1", 8080))
-//            switch pingConfig.type {
-//            case .http(let httpOptions):
-//                var httpPing = HTTPPing(httpOptions: httpOptions, networkLinkConfig: networkLinkConfig)
-//
-//                Task {
-//                    try await Task.sleep(nanoseconds: UInt64(waitSecond) * 1_000_000_000)
-//                    httpPing.stop()
-//                }
-//
-//                try await httpPing.start(with: pingConfig)
-//
-//                switch httpPing.pingStatus {
-//                case .stopped:
-//                    XCTAssertNotNil(httpPing.summary?.totalCount)
-//                    XCTAssertLessThanOrEqual(httpPing.summary!.totalCount, waitSecond + 1)
-//                    XCTAssertEqual(httpPing.summary?.details.isEmpty, false)
-//                    XCTAssertEqual(httpPing.summary?.duplicates.count, 0)
-//                    XCTAssertEqual(httpPing.summary?.timeout.count, 0)
-//                default:
-//                    XCTFail("Invalid HTTP Ping state. Should be .finished, but is \(httpPing.pingStatus)")
-//                }
-//            default:
-//                XCTFail("Invalid PingConfig. Need HTTP, but received \(pingConfig.type)")
-//            }
-//        }
-//    }
+    @MainActor
+    func testCancelDuringTest() async throws {
+        for waitSecond in [2, 4, 5, 6, 7, 9] {
+            let networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected
+            let pingConfig: LCLPing.PingConfiguration = .init(type: .http(LCLPing.PingConfiguration.HTTPOptions()), endpoint: .ipv4("http://127.0.0.1", 8080))
+            switch pingConfig.type {
+            case .http(let httpOptions):
+                var httpPing = HTTPPing(httpOptions: httpOptions, networkLinkConfig: networkLinkConfig)
+
+                Task {
+                    try await Task.sleep(nanoseconds: UInt64(waitSecond) * 1_000_000_000)
+                    httpPing.stop()
+                }
+
+                try await httpPing.start(with: pingConfig)
+
+                switch httpPing.pingStatus {
+                case .stopped:
+                    XCTAssertNotNil(httpPing.summary?.totalCount)
+                    XCTAssertLessThanOrEqual(httpPing.summary!.totalCount, waitSecond + 1)
+                    XCTAssertEqual(httpPing.summary?.details.isEmpty, false)
+                    XCTAssertEqual(httpPing.summary?.duplicates.count, 0)
+                    XCTAssertEqual(httpPing.summary?.timeout.count, 0)
+                default:
+                    XCTFail("Invalid HTTP Ping state. Should be .finished, but is \(httpPing.pingStatus)")
+                }
+            default:
+                XCTFail("Invalid PingConfig. Need HTTP, but received \(pingConfig.type)")
+            }
+        }
+    }
     
     func testCancelAfterTestFinishes() async throws {
         let networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected
@@ -311,88 +309,62 @@ final class HTTPIntegrationTests: XCTestCase {
             XCTFail("Invalid PingConfig. Need HTTP, but received \(pingConfig.type)")
         }
     }
-    
-    
-    
-        // FIXME: re-enable the following test after https://github.com/apple/swift-nio/issues/2612 is fixed
 
-//    func testMediumInOutPacketDrop() async throws {
-//        XCTSkip("temporarily skip the test because Deinited NIOAsyncWriter without calling finish()")
-//        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.4, outPacketLoss: 0.4)
-//        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
-//        switch pingStatus {
-//        case .finished:
-//            ()
-//        default:
-//            XCTFail("HTTP Test failed with status \(pingStatus)")
-//        }
-//    }
-//
-//    func testMinorInPacketDrop() async throws {
-//        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.2)
-//        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
-//        switch pingStatus {
-//        case .finished:
-//            ()
-//        default:
-//            XCTFail("HTTP Test failed with status \(pingStatus)")
-//        }
-//    }
-//
-//    func testMinorOutPacketDrop() async throws {
-//        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(outPacketLoss: 0.2)
-//        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
-//        switch pingStatus {
-//        case .finished:
-//            ()
-//        default:
-//            XCTFail("HTTP Test failed with status \(pingStatus)")
-//        }
-//    }
-//
-//    func testMediumInPacketDrop() async throws {
-//        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.5)
-//        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
-//        switch pingStatus {
-//        case .finished:
-//            ()
-//        default:
-//            XCTFail("HTTP Test failed with status \(pingStatus)")
-//        }
-//    }
-//
-//    func testMediumOutPacketDrop() async throws {
-//        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(outPacketLoss: 0.5)
-//        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
-//        switch pingStatus {
-//        case .finished:
-//            ()
-//        default:
-//            XCTFail("HTTP Test failed with status \(pingStatus)")
-//        }
-//    }
-//
-//    func testFullyDuplicatedNetwork() async throws {
-//        let fullyDuplicated = TrafficControllerChannelHandler.NetworkLinkConfiguration.fullyDuplicated
-//        let (pingStatus, pingSummary) = try await runTest(networkLinkConfig: fullyDuplicated)
-//        switch pingStatus {
-//        case .finished:
-//            XCTAssertEqual(pingSummary?.duplicates.count, 9) // before the last duplicate is sent, the channel is already closed.
-//        default:
-//            XCTFail("HTTP Test failed with status \(pingStatus)")
-//        }
-//    }
-//
-//    func testDuplicatedNetwork() async throws {
-//        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration.init(inDuplicate: 0.5)
-//        let (pingStatus, pingSummary) = try await runTest(networkLinkConfig: networkLink)
-//        switch pingStatus {
-//            case .finished:
-//                XCTAssertEqual(pingSummary?.duplicates.isEmpty, false)
-//            default:
-//                XCTFail("HTTP Test failed with status \(pingStatus)")
-//        }
-//    }
-    
+    // FIXME: re-enable the following test after https://github.com/apple/swift-nio/issues/2612 is fixed
+
+    func testMediumInOutPacketDrop() async throws {
+        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.4, outPacketLoss: 0.4)
+        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
+        switch pingStatus {
+        case .finished:
+            ()
+        default:
+            XCTFail("HTTP Test failed with status \(pingStatus)")
+        }
+    }
+
+    func testMinorInPacketDrop() async throws {
+        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.2)
+        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
+        switch pingStatus {
+        case .finished:
+            ()
+        default:
+            XCTFail("HTTP Test failed with status \(pingStatus)")
+        }
+    }
+
+    func testMinorOutPacketDrop() async throws {
+        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(outPacketLoss: 0.2)
+        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
+        switch pingStatus {
+        case .finished:
+            ()
+        default:
+            XCTFail("HTTP Test failed with status \(pingStatus)")
+        }
+    }
+
+    func testMediumInPacketDrop() async throws {
+        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.5)
+        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
+        switch pingStatus {
+        case .finished:
+            ()
+        default:
+            XCTFail("HTTP Test failed with status \(pingStatus)")
+        }
+    }
+
+    func testMediumOutPacketDrop() async throws {
+        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(outPacketLoss: 0.5)
+        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
+        switch pingStatus {
+        case .finished:
+            ()
+        default:
+            XCTFail("HTTP Test failed with status \(pingStatus)")
+        }
+    }
 }
 #endif

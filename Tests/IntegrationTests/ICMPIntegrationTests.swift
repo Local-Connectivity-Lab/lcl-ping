@@ -14,7 +14,7 @@ import XCTest
 import NIOCore
 @testable import LCLPing
 
-#if INTEGRATION_TEST
+#if INTEGRATION_TEST && (os(macOS) || os(iOS) || os(watchOS) || os(tvOS) || swift(>=5.5))
 final class ICMPIntegrationTests: XCTestCase {
 
     private func runTest(
@@ -193,7 +193,7 @@ final class ICMPIntegrationTests: XCTestCase {
             XCTFail("Invalid PingConfig. Need HTTP, but received \(pingConfig.type)")
         }
     }
-    
+
     @MainActor
     func testCancelDuringTest() async throws {
 //        throw XCTSkip("Skipped: the following test after https://github.com/apple/swift-nio/issues/2612 is fixed")
@@ -226,7 +226,7 @@ final class ICMPIntegrationTests: XCTestCase {
             }
         }
     }
-    
+
     func testCancelAfterTestFinishes() async throws {
         let networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected
         let pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 3)
@@ -249,5 +249,4 @@ final class ICMPIntegrationTests: XCTestCase {
         }
     }
 }
-
 #endif
