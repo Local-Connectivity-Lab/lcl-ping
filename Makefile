@@ -11,7 +11,8 @@ setup_server: server_environment
 
 .PHONY: teardown_server
 teardown_server:
-	kill -9 $(ps -ef | grep "$(RUN_FLASK)" | grep -v "grep" | awk '{print $2}')
+	kill -9 $$(lsof -t -i :$(SERVER_PORT))
+
 
 ######### Production #########
 .PHONY: release
