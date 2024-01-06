@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Test Server
         run: |
-          make setup_server &
+          make setup_server
           curl 127.0.0.1:8080
           make teardown_server
       # - name: Build

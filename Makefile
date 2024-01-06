@@ -7,12 +7,11 @@ server_environment:
 
 .PHONY: setup_server
 setup_server: server_environment
-	$(RUN_FLASK) --port $(SERVER_PORT)
+	$(RUN_FLASK) --port $(SERVER_PORT) &
 
 .PHONY: teardown_server
 teardown_server:
 	kill -9 $(ps -ef | grep "$(RUN_FLASK)" | grep -v "grep" | awk '{print $2}')
-	rm -rf venv
 
 ######### Production #########
 .PHONY: release
