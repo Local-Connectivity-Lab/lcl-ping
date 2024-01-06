@@ -7,10 +7,8 @@ jobs:
     name: Swift ${{ matrix.swift }} on ${{ matrix.os }}
     strategy:
       matrix:
-        # os: [ubuntu-latest, macos-latest]
-        os: [ubuntu-latest]
-        # swift: ["5.8", "5.9"]
-        swift: ["5.9"]
+        os: [ubuntu-latest, macos-latest]
+        swift: ["5.8", "5.9"]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: swift-actions/setup-swift@v1

@@ -36,7 +36,7 @@ def _generate_response(desired_status_code) -> Response:
         desired_status_code = int(desired_status_code)
     except:
         return make_response("Invalid Status-Code in the HTTP Header", 404)
-    response = make_response("Hello from lcl-ping mock server!")
+    response = make_response("Hello from lcl-ping mock server!\n")
     response.status_code = desired_status_code
     return response
 
