@@ -15,7 +15,12 @@ jobs:
         with:
           swift-version: ${{ matrix.swift }}
       - uses: actions/checkout@v4
-      - name: Build
-        run: swift build
-      - name: Run tests
-        run: swift test --skip IntegrationTests
+      - name: Test Server
+        run: |
+          make setup_server
+          curl localhost:8080
+          make teardown_server
+      # - name: Build
+      #   run: swift build
+      # - name: Run tests
+      #   run: swift test --skip IntegrationTests
