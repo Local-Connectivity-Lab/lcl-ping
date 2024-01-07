@@ -22,8 +22,7 @@ release: test
 .PHONY: test
 test:
 	make unit_test
-	# make integration_test
-	ls -al
+	make integration_test
 
 .PHONY: unit_test
 unit_test:
@@ -32,7 +31,9 @@ unit_test:
 .PHONY: integration_test
 integration_test:
 	make setup_server
-	swift test -Xswiftc -DINTEGRATION_TEST --filter IntegrationTests
+	sleep 5
+    curl http://localhost:8080
+	swift test -Xswiftc -DINTEGRATION_TEST --filter IntegrationTests > integration_test.log
 	make teardown_server
 
 

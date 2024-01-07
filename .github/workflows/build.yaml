@@ -15,21 +15,15 @@ jobs:
         with:
           swift-version: ${{ matrix.swift }}
       - uses: actions/checkout@v4
-      - name: Test Server
-        run: |
-          make setup_server
-          sleep 10
-          curl http://localhost:8080
-          make teardown_server
-          make test
+      - name: Run Unit Tests
+        run: make unit_test
+      - name: Run Integration Tests
+        run: make integration_test
       - name: Upload Test logs
         uses: actions/upload-artifact@v3
         with:
           name: test log
           path: |
             unit_test.log
+            integration_test.log
           retention-days: 7
-      # - name: Build
-      #   run: swift build
-      # - name: Run tests
-      #   run: swift test --skip IntegrationTests
