@@ -19,11 +19,3 @@ jobs:
         run: make unit_test
       - name: Run Integration Tests
         run: make integration_test
-      - name: Upload Test logs
-        uses: actions/upload-artifact@v3
-        with:
-          name: test log
-          path: |
-            unit_test.log
-            integration_test.log
-          retention-days: 7

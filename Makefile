@@ -26,14 +26,14 @@ test:
 
 .PHONY: unit_test
 unit_test:
-	swift test --skip IntegrationTests > unit_test.log
+	swift test --skip IntegrationTests
 
 .PHONY: integration_test
 integration_test:
 	make setup_server
 	sleep 5
-    curl http://localhost:8080
-	swift test -Xswiftc -DINTEGRATION_TEST --filter IntegrationTests > integration_test.log
+	curl http://localhost:8080
+	swift test -Xswiftc -DINTEGRATION_TEST --filter IntegrationTests
 	make teardown_server
 
 
