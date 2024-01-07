@@ -21,6 +21,7 @@ jobs:
           sleep 10
           curl http://localhost:8080
           make teardown_server
+          make test
       # - name: Build
       #   run: swift build
       # - name: Run tests

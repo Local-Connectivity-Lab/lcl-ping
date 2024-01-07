@@ -199,7 +199,7 @@ internal struct HTTPPing: Pingable {
             }
 
             if let pingSummary = pingSummary {
-                printSummary(pingSummary)
+                // printSummary(pingSummary)
             }
         } catch {
             pingStatus = .error

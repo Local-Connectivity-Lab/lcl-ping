@@ -161,7 +161,7 @@ internal struct ICMPPing: Pingable {
             }
 
             if let pingSummary = pingSummary {
-                printSummary(pingSummary)
+                // printSummary(pingSummary)
             }
             
         case .failure(let failure):

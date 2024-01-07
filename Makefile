@@ -21,9 +21,20 @@ release: test
 
 .PHONY: test
 test:
+	make unit_test
+	# make integration_test
+	ls -al
+
+.PHONY: unit_test
+unit_test:
+	swift test --skip IntegrationTests > unit_test.log
+
+.PHONY: integration_test
+integration_test:
 	make setup_server
-	swift test --parallel -Xswiftc -DINTEGRATION_TEST
+	swift test -Xswiftc -DINTEGRATION_TEST --filter IntegrationTests
 	make teardown_server
+
 
 .PHONY: package
 package:
@@ -36,7 +47,7 @@ debug_build:
 	
 .PHONY: debug_unit_test
 debug_unit_test:
-	swift test --skip IntegrationTests 
+	swift test -Xswiftc -DDEBUG --skip IntegrationTests 
 
 .PHONY: debug_integration_test
 debug_integration_test:
