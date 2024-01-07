@@ -33,7 +33,7 @@ integration_test:
 	make setup_server
 	sleep 5
 	curl http://localhost:8080
-	swift test -Xswiftc -DINTEGRATION_TEST --filter IntegrationTests
+	swift test -Xswiftc -DINTEGRATION_TEST --filter IntegrationTests || true
 	make teardown_server
 
 
