@@ -7,22 +7,15 @@ jobs:
     name: Swift ${{ matrix.swift }} on ${{ matrix.os }}
     strategy:
       matrix:
-        # os: [ubuntu-latest, macos-latest]
-        os: [ubuntu-latest]
-        # swift: ["5.8", "5.9"]
-        swift: ["5.9"]
+        os: [ubuntu-latest, macos-latest]
+        swift: ["5.8", "5.9"]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: swift-actions/setup-swift@v1
         with:
           swift-version: ${{ matrix.swift }}
       - uses: actions/checkout@v4
-      - name: Test Server
-        run: |
-          make setup_server
-          curl 127.0.0.1:8080
-          make teardown_server
-      # - name: Build
-      #   run: swift build
-      # - name: Run tests
-      #   run: swift test --skip IntegrationTests
+      - name: Run Unit Tests
+        run: make unit_test
+      - name: Run Integration Tests
+        run: make integration_test

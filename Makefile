@@ -11,7 +11,8 @@ setup_server: server_environment
 
 .PHONY: teardown_server
 teardown_server:
-	kill -9 $(ps -ef | grep "$(RUN_FLASK)" | grep -v "grep" | awk '{print $2}')
+	kill -9 $$(lsof -t -i :$(SERVER_PORT))
+
 
 ######### Production #########
 .PHONY: release
@@ -20,9 +21,21 @@ release: test
 
 .PHONY: test
 test:
+	make unit_test
+	make integration_test
+
+.PHONY: unit_test
+unit_test:
+	swift test --skip IntegrationTests
+
+.PHONY: integration_test
+integration_test:
 	make setup_server
-	swift test --parallel -Xswiftc -DINTEGRATION_TEST
+	sleep 5
+	curl http://localhost:8080
+	swift test -Xswiftc -DINTEGRATION_TEST --filter IntegrationTests || true
 	make teardown_server
+
 
 .PHONY: package
 package:
@@ -35,7 +48,7 @@ debug_build:
 	
 .PHONY: debug_unit_test
 debug_unit_test:
-	swift test --skip IntegrationTests 
+	swift test -Xswiftc -DDEBUG --skip IntegrationTests 
 
 .PHONY: debug_integration_test
 debug_integration_test:

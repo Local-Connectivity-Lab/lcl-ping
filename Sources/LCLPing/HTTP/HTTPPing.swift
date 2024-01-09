@@ -197,10 +197,6 @@ internal struct HTTPPing: Pingable {
             case .finished, .ready, .error:
                 fatalError("wrong state: \(pingStatus)")
             }
-
-            if let pingSummary = pingSummary {
-                printSummary(pingSummary)
-            }
         } catch {
             pingStatus = .error
             throw PingError.sendPingFailed(error)

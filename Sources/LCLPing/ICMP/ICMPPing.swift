@@ -159,11 +159,6 @@ internal struct ICMPPing: Pingable {
             if self.pingStatus != .stopped {
                 pingStatus = .finished
             }
-
-            if let pingSummary = pingSummary {
-                printSummary(pingSummary)
-            }
-            
         case .failure(let failure):
             pingStatus = .error
             throw failure
