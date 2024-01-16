@@ -52,9 +52,12 @@ final class ICMPDuplexerTests: XCTestCase {
         let outboundInData: ICMPOutboundIn = (1,2)
         try channel.writeOutbound(outboundInData)
         self.loop.run()
-        var outboundOutData = try channel.readOutbound(as: ByteBuffer.self)
+        let outboundOutData = try channel.readOutbound(as: AddressedEnvelope<ByteBuffer>.self)
         XCTAssertNotNil(outboundOutData)
-        let sent = try decodeByteBuffer(of: ICMPHeader.self, data: &outboundOutData!)
+        var data = outboundOutData!.data
+        let remoteAddr = outboundOutData!.remoteAddress
+        let sent = try decodeByteBuffer(of: ICMPHeader.self, data: &data)
+        XCTAssertEqual(remoteAddr, try! SocketAddress(ipAddress: "127.0.0.1", port: 0))
         XCTAssertEqual(sent.type, ICMPType.EchoRequest.rawValue)
         XCTAssertEqual(sent.code, 0)
         XCTAssertEqual(sent.idenifier, 1)
@@ -175,7 +178,9 @@ final class ICMPDuplexerTests: XCTestCase {
         }
     }
     
+    // On Linux platform, idenfier is unpredictable, we skip if test is run on Linux platform
     func testInvalidICMPIdentifier() throws {
+        #if canImport(Darwin)
         XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: self.icmpConfiguration)).wait())
         channel.pipeline.fireChannelActive()
         var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.EchoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
@@ -193,6 +198,7 @@ final class ICMPDuplexerTests: XCTestCase {
         default:
             XCTFail("Should receive a PingResponse.error, but received \(inboundInResult)")
         }
+        #endif // canImport(Darwin)
     }
     
     func testICMPResponseTimeout() throws {

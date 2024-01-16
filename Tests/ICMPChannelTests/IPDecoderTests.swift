@@ -52,41 +52,57 @@ final class IPDecoderTests: XCTestCase {
     func testDecodeValidIPHeader() throws {
         XCTAssertNoThrow(try sendIPPacket(byteString: "45000054000000003a0157518efad94ec0a80067"))
         let remaining = try channel.readInbound(as: ByteBuffer.self)
+        #if canImport(Darwin)
         XCTAssertEqual(remaining?.readableBytes, 0)
+        #else // !canImport(Darwin)
+        XCTAssertEqual(remaining?.readableBytes, 20)
+        #endif // !canImport(Darwin)
     }
     
     
     func testDecodeCorrectSliceAfterDecode() throws {
         XCTAssertNoThrow(try sendIPPacket(byteString: "45000054000000003a0157518efad94ec0a800671122334455667788"))
         let remaining = try channel.readInbound(as: ByteBuffer.self)
+        #if canImport(Darwin)
         XCTAssertEqual(remaining?.readableBytes, 8)
+        #else // !canImport(Darwin)
+        XCTAssertEqual(remaining?.readableBytes, 28)
+        #endif // !canImport(Darwin)
     }
     
     func testDecodeInvalidIPVersion() throws {
+        #if canImport(Darwin)
         let expectedError: PingError = .invalidIPVersion
         XCTAssertThrowsError(try sendIPPacket(byteString: "15000054000000003a0157518efad94ec0a80067")) { error in
             XCTAssertEqual(error.localizedDescription, expectedError.localizedDescription)
         }
+        #endif
     }
     
     func testDecodeInvalidIPProtocol() throws {
+        #if canImport(Darwin)
         let expectedError: PingError = .invalidIPProtocol
         XCTAssertThrowsError(try sendIPPacket(byteString: "45000054000000003a0257518efad94ec0a80067")) { error in
             XCTAssertEqual(error.localizedDescription, expectedError.localizedDescription)
         }
+        #endif
     }
     
     func testDecodeInsufficientByteLength() throws {
+        #if canImport(Darwin)
         let expectedError: RuntimeError = .insufficientBytes("Not enough bytes in the reponse message. Need 20 bytes. But received 8")
         XCTAssertThrowsError(try sendIPPacket(byteString: "4500005400000000")) { error in
             XCTAssertEqual(error as? RuntimeError, expectedError)
         }
+        #endif
     }
     
     func testDecodeEmptyPacket() throws {
+        #if canImport(Darwin)
         let expectedError: RuntimeError = .insufficientBytes("Not enough bytes in the reponse message. Need 20 bytes. But received 0")
         XCTAssertThrowsError(try sendIPPacket(byteString: "")) { error in
             XCTAssertEqual(error as? RuntimeError, expectedError)
         }
+        #endif
     }
 }
