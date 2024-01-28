@@ -58,7 +58,7 @@ extension AddressedEnvelope: Rewritable where DataType == ByteBuffer {
     func rewrite(newValues: [PartialKeyPath<NIOCore.AddressedEnvelope<DataType>> : AnyObject]) -> NIOCore.AddressedEnvelope<DataType> {
         return AddressedEnvelope(
             remoteAddress: newValues[\.remoteAddress] as? SocketAddress ?? self.remoteAddress,
-            data: data.rewrite(newValues: newValues[\AddressedEnvelope.data] as? [RewriteData] ?? [RewriteData(index: 0, byte: 0x55)])
+            data: data.rewrite(newValues: newValues[\AddressedEnvelope.data] as? [RewriteData] ?? [])
         )
     }
 }
@@ -66,17 +66,16 @@ extension AddressedEnvelope: Rewritable where DataType == ByteBuffer {
 
 extension ByteBuffer {
     func rewrite(newValues: ByteBuffer) -> NIOCore.ByteBuffer {
-        print("[ByteBuffer Rewrite]: received new value: \(newValues.readableBytesView)")
         return ByteBuffer(buffer: newValues)
     }
     
     func rewrite(newValues: [RewriteData]) -> ByteBuffer {
-        print("[ByteBuffer Rewrite]: received new value: \(newValues)")
+        logger.debug("[ByteBuffer Rewrite]: received new value: \(newValues)")
         var newBuffer = ByteBuffer(buffer: self)
         for newValue in newValues {
             newBuffer.setBytes(newValue.byte.data, at: newValue.index)
         }
-        print("ByteBuffer Rewrite: rewritten as \(newBuffer.readableBytesView)")
+        logger.debug("ByteBuffer Rewrite: rewritten as \(newBuffer.readableBytesView)")
         return newBuffer
     }
 }

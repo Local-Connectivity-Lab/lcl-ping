@@ -87,7 +87,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         
         self.timerScheduler.schedule(delay: self.configuration.timeout, key: sequenceNum) { [weak self, context] in
             if let self = self, !self.seqToResponse.keys.contains(sequenceNum) {
-                print("[ICMPDuplexer][\(#function)]: packet #\(sequenceNum) timed out")
+                logger.debug("[ICMPDuplexer][\(#function)]: packet #\(sequenceNum) timed out")
                 self.responseSeqNumSet.insert(sequenceNum)
                 context.eventLoop.execute {
                     context.fireChannelRead(self.wrapInboundOut(.timeout(sequenceNum)))
@@ -95,19 +95,19 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
                 }
             }
         }
-        print("[ICMPDuplexer][\(#function)]: schedule timer for # \(sequenceNum) for \(self.configuration.timeout) second")
+        logger.debug("[ICMPDuplexer][\(#function)]: schedule timer for # \(sequenceNum) for \(self.configuration.timeout) second")
     }
     
     private func closeWhenComplete(context: ChannelHandlerContext) {
         if self.seqToRequest.count == self.configuration.count && self.responseSeqNumSet.count == self.configuration.count {
-            print("[ICMPDuplexer]: Ping finished. Closing all channels")
+            logger.debug("[ICMPDuplexer]: Ping finished. Closing all channels")
             context.close(mode: .all, promise: nil)
         }
     }
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         guard self.state.isOperational else {
-            print("[ICMPDuplexer][\(#function)]: drop data: \(data) because channel is not in operational state")
+            logger.debug("[ICMPDuplexer][\(#function)]: drop data: \(data) because channel is not in operational state")
             return
         }
         
@@ -117,11 +117,11 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         let code = icmpResponse.code
         let sequenceNum = icmpResponse.sequenceNum
         let identifier = icmpResponse.idenifier
-        print("[ICMPDuplexer][\(#function)]: received icmp response with type: \(type), code: \(code), sequence number: \(sequenceNum), identifier: \(identifier)")
+        logger.debug("[ICMPDuplexer][\(#function)]: received icmp response with type: \(type), code: \(code), sequence number: \(sequenceNum), identifier: \(identifier)")
         
         if self.responseSeqNumSet.contains(sequenceNum) {
             let pingResponse: PingResponse = self.seqToResponse[sequenceNum] == nil ? .timeout(sequenceNum) : .duplicated(sequenceNum)
-            print("[ICMPDuplexer][\(#function)]: response for #\(sequenceNum) is \(self.seqToResponse[sequenceNum] == nil ? "timeout" : "duplicate")")
+            logger.debug("[ICMPDuplexer][\(#function)]: response for #\(sequenceNum) is \(self.seqToResponse[sequenceNum] == nil ? "timeout" : "duplicate")")
             context.fireChannelRead(self.wrapInboundOut(pingResponse))
             closeWhenComplete(context: context)
             return
@@ -281,13 +281,13 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
     func channelActive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
-            print("[ICMPDuplexer][\(#function)]: Channel already active")
+            logger.debug("[ICMPDuplexer][\(#function)]: Channel already active")
             break
         case .error:
             logger.error("[ICMPDuplexer][\(#function)]: in an incorrect state: \(state)")
             assertionFailure("[\(#function)]: in an incorrect state: \(state)")
         case .inactive:
-            print("[ICMPDuplexer][\(#function)]: Channel active")
+            logger.debug("[ICMPDuplexer][\(#function)]: Channel active")
             context.fireChannelActive()
             self.state = .operational
         }
@@ -301,7 +301,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
             self.seqToRequest.removeAll()
             self.seqToResponse.removeAll()
             self.timerScheduler.reset()
-            print("[ICMPDuplexer][\(#function)]: Channel inactive")
+            logger.debug("[ICMPDuplexer][\(#function)]: Channel inactive")
         case .error:
             break
         case .inactive:
@@ -312,7 +312,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
     
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         guard self.state.isOperational else {
-            print("[ICMPDuplexer]: already in error state. ignore error \(error)")
+            logger.debug("[ICMPDuplexer]: already in error state. ignore error \(error)")
             return
         }
         self.state = .error
@@ -347,13 +347,13 @@ internal final class IPDecoder: ChannelInboundHandler {
     func channelActive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
-            print("[IPDecoder][\(#function)]: Channel already active")
+            logger.debug("[IPDecoder][\(#function)]: Channel already active")
             break
         case .error:
             logger.error("[IPDecoder][\(#function)] in an incorrect state: \(state)")
             assertionFailure("[IPDecoder][\(#function)] in an incorrect state: \(state)")
         case .inactive:
-            print("[IPDecoder][\(#function)]: Channel active")
+            logger.debug("[IPDecoder][\(#function)]: Channel active")
             context.fireChannelActive()
             self.state = .operational
         }
@@ -362,26 +362,25 @@ internal final class IPDecoder: ChannelInboundHandler {
     func channelInactive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
-            print("[IPDecoder][\(#function)]: Channel inactive")
+            logger.debug("[IPDecoder][\(#function)]: Channel inactive")
             context.fireChannelInactive()
             self.state = .inactive
         case .error:
             break
         case .inactive:
-            print("[IPDecoder][\(#function)]: received inactive signal when channel is already in inactive state.")
+            logger.debug("[IPDecoder][\(#function)]: received inactive signal when channel is already in inactive state.")
             assertionFailure("[IPDecoder][\(#function)]: received inactive signal when channel is already in inactive state.")
         }
     }
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         guard self.state.isOperational else {
-            print("[IPDecoder][\(#function)]: drop data: \(data) because channel is not in operational state")
+            logger.debug("[IPDecoder][\(#function)]: drop data: \(data) because channel is not in operational state")
             return
         }
         
         let addressedBuffer = self.unwrapInboundIn(data)
         var buffer = addressedBuffer.data
-        print(buffer.readableBytesView)
         #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
         let ipv4Header: IPv4Header
         do {
@@ -392,7 +391,7 @@ internal final class IPDecoder: ChannelInboundHandler {
         }
         let version = ipv4Header.versionAndHeaderLength & 0xF0
         if version != 0x40 {
-            print("received version: \(version)")
+            logger.debug("received version: \(version)")
             context.fireErrorCaught(PingError.invalidIPVersion)
             return
         }
@@ -410,7 +409,7 @@ internal final class IPDecoder: ChannelInboundHandler {
     
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         guard self.state.isOperational else {
-            print("[IPDecoder]: already in error state. ignore error \(error)")
+            logger.debug("[IPDecoder]: already in error state. ignore error \(error)")
             return
         }
         
@@ -443,13 +442,13 @@ internal final class ICMPDecoder: ChannelInboundHandler {
     func channelActive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
-            print("[ICMPDecoder][\(#function)]: Channel already active")
+            logger.debug("[ICMPDecoder][\(#function)]: Channel already active")
             break
         case .error:
             logger.error("[ICMPDecoder][\(#function)] in an incorrect state: \(state)")
             assertionFailure("[\(#function)] in an incorrect state: \(state)")
         case .inactive:
-            print("[ICMPDecoder][\(#function)]: Channel active")
+            logger.debug("[ICMPDecoder][\(#function)]: Channel active")
             context.fireChannelActive()
             self.state = .operational
         }
@@ -458,7 +457,7 @@ internal final class ICMPDecoder: ChannelInboundHandler {
     func channelInactive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
-            print("[ICMPDecoder][\(#function)]: Channel inactive")
+            logger.debug("[ICMPDecoder][\(#function)]: Channel inactive")
             context.fireChannelInactive()
             self.state = .inactive
         case .error:
@@ -471,7 +470,7 @@ internal final class ICMPDecoder: ChannelInboundHandler {
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         guard self.state.isOperational else {
-            print("[ICMPDecoder]: drop data: \(data) because channel is not in operational state")
+            logger.debug("[ICMPDecoder]: drop data: \(data) because channel is not in operational state")
             return
         }
         
@@ -484,12 +483,12 @@ internal final class ICMPDecoder: ChannelInboundHandler {
             return
         }
         context.fireChannelRead(self.wrapInboundOut(icmpResponseHeader))
-        print("[ICMPDecoder][\(#function)] finish decoding icmp header: \(icmpResponseHeader)")
+        logger.debug("[ICMPDecoder][\(#function)] finish decoding icmp header: \(icmpResponseHeader)")
     }
     
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         guard self.state.isOperational else {
-            print("[ICMPDecoder]: already in error state. ignore error \(error)")
+            logger.debug("[ICMPDecoder]: already in error state. ignore error \(error)")
             return
         }
         
