@@ -81,7 +81,7 @@ internal func summarizePingResponse(_ pingResponses: [PingResponse], host: Socke
             timeout.insert(sequenceNum)
         case .error(let seqNum, let error):
             errorCount += 1
-            if let seqNum = seqNum, let error = error {
+            if let error = error {
                 errors.insert(PingSummary.PingErrorSummary(seqNum: seqNum, reason: error.localizedDescription))
             }
         }
