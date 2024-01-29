@@ -86,9 +86,6 @@ final class ICMPDuplexerTests: XCTestCase {
     }
     
     func testReadFireCorrectError() {
-        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: self.icmpConfiguration)).wait())
-        channel.pipeline.fireChannelActive()
-        
         let inputs = [
             (3, 0, PingError.icmpDestinationNetworkUnreachable),
             (3, 1, PingError.icmpDestinationHostUnreachable),
@@ -123,10 +120,17 @@ final class ICMPDuplexerTests: XCTestCase {
         for input in inputs {
             let (type, code, expectedError) = input
             var inboundInData: ICMPHeader = ICMPHeader(type: UInt8(type), code: UInt8(code), idenifier: 0xbeef, sequenceNum: 2)
+            let outboundInData: ICMPOutboundIn = (UInt16(0xbeef), UInt16(2))
             inboundInData.setChecksum()
             do {
+                let channel = EmbeddedChannel()
+                let loop = channel.embeddedEventLoop
+                XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: self.icmpConfiguration)).wait())
+                channel.pipeline.fireChannelActive()
+                
+                try channel.writeOutbound(outboundInData)
                 try channel.writeInbound(inboundInData)
-                self.loop.run()
+                loop.run()
                 let inboundInResult = try channel.readInbound(as: PingResponse.self)!
                 switch inboundInResult {
                 case .error(.some(let seqNum), .some(let error)):

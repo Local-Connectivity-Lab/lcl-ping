@@ -14,7 +14,7 @@ import XCTest
 import NIOCore
 @testable import LCLPing
 
-#if INTEGRATION_TEST && (os(macOS) || os(iOS) || os(watchOS) || os(tvOS) || swift(>=5.5))
+#if INTEGRATION_TEST && (os(macOS) || os(iOS) || os(watchOS) || os(tvOS) || swift(>=5.7))
 final class ICMPIntegrationTests: XCTestCase {
 
     private func runTest(
@@ -159,22 +159,159 @@ final class ICMPIntegrationTests: XCTestCase {
         }
     }
 
-    // TODO: more tests with header rewrite
+    func testInvalidIpHeader() async throws {
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        let addressedEnvelopRewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject] = [
+            \AddressedEnvelope.data: [RewriteData(index: 0, byte: 0x55)] as AnyObject
+        ]
+        
+        let pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 1)
+        
+        let expectedError = PingError.invalidIPVersion
+        do {
+            let (pingState, pingSummary) = try await runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
+            XCTAssertEqual(pingState, .finished)
+            XCTAssertNotNil(pingSummary)
+            XCTAssertEqual(pingSummary!.totalCount, 1)
+            XCTAssertEqual(pingSummary!.errors, [PingSummary.PingErrorSummary(seqNum: nil, reason: expectedError.localizedDescription)])
+            
+        } catch {
+            XCTFail("Should not throw \(error)")
+        }
+        #else
+        XCTSkip("Skipped on Linux Platform")
+        #endif
+    }
+    
+    func testInvalidIPProtocol() async throws {
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        let addressedEnvelopRewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject] = [
+            \AddressedEnvelope.data: [RewriteData(index: 9, byte: 0x02)] as AnyObject
+        ]
 
-//    func testInvalidIpHeader() async throws {
-//        let ipRewriteHeaders: [PartialKeyPath<IPv4Header> : AnyObject] = [
-//            \.versionAndHeaderLength: 0x55 as AnyObject,
-//            \.protocol: 1 as AnyObject
-//        ]
-//        let expectedError = PingError.sendPingFailed(PingError.invalidIPVersion)
-//        do {
-//            let _ = try await runTest(ipRewriteHeader: ipRewriteHeaders)
-//        } catch {
-//            XCTAssertEqual(error.localizedDescription, expectedError.localizedDescription)
-//        }
-//    }
+        let pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 1)
 
-    // TODO: more tests on cancellation
+        let expectedError = PingError.invalidIPProtocol
+        do {
+            let (pingState, pingSummary) = try await runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
+            XCTAssertEqual(pingState, .finished)
+            XCTAssertNotNil(pingSummary)
+            XCTAssertEqual(pingSummary!.totalCount, 1)
+            XCTAssertEqual(pingSummary!.errors, [PingSummary.PingErrorSummary(seqNum: nil, reason: expectedError.localizedDescription)])
+            
+        } catch {
+            XCTFail("Should not throw \(error)")
+        }
+        #else
+        XCTSkip("Skipped on Linux Platform")
+        #endif
+    }
+    
+    func testInvalidICMPTypeAndCode() async throws {
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        let testParams: [(Int8, Int8, PingError)] = [
+            (0x3, 0x0, PingError.icmpDestinationNetworkUnreachable),
+            (0x3, 0x1, PingError.icmpDestinationHostUnreachable),
+            (0x3, 0x2, PingError.icmpDestinationProtocoltUnreachable),
+            (0x3, 0x3, PingError.icmpDestinationPortUnreachable),
+            (0x3, 0x4, PingError.icmpFragmentationRequired),
+            (0x3, 0x5, PingError.icmpSourceRouteFailed),
+            (0x3, 0x6, PingError.icmpUnknownDestinationNetwork),
+            (0x3, 0x7, PingError.icmpUnknownDestinationHost),
+            (0x3, 0x8, PingError.icmpSourceHostIsolated),
+            (0x3, 0x9, PingError.icmpNetworkAdministrativelyProhibited),
+            (0x3, 0xA, PingError.icmpHostAdministrativelyProhibited),
+            (0x3, 0xB, PingError.icmpNetworkUnreachableForToS),
+            (0x3, 0xC, PingError.icmpHostUnreachableForToS),
+            (0x3, 0xD, PingError.icmpCommunicationAdministrativelyProhibited),
+            (0x3, 0xE, PingError.icmpHostPrecedenceViolation),
+            (0x3, 0xF, PingError.icmpPrecedenceCutoffInEffect),
+            (0x5, 0x0, PingError.icmpRedirectDatagramForNetwork),
+            (0x5, 0x1, PingError.icmpRedirectDatagramForHost),
+            (0x5, 0x2, PingError.icmpRedirectDatagramForTosAndNetwork),
+            (0x5, 0x3, PingError.icmpRedirectDatagramForTosAndHost),
+            (0x9, 0x0, PingError.icmpRouterAdvertisement),
+            (0xA, 0x0, PingError.icmpRouterDiscoverySelectionSolicitation),
+            (0xB, 0x0, PingError.icmpTTLExpiredInTransit),
+            (0xB, 0x1, PingError.icmpFragmentReassemblyTimeExceeded),
+            (0xC, 0x0, PingError.icmpPointerIndicatesError),
+            (0xC, 0x1, PingError.icmpMissingARequiredOption),
+            (0xC, 0x2, PingError.icmpBadLength),
+            (0xD, 0x9, PingError.unknownError("Received unknown ICMP type (13) and ICMP code (9)"))
+        ]
+        
+        for testParam in testParams {
+            let (type, code, expectedError) = testParam
+            let addressedEnvelopRewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject] = [
+                \AddressedEnvelope.data: [RewriteData(index: 20, byte: type), RewriteData(index: 21, byte: code)] as AnyObject
+            ]
+
+            let pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 1)
+            do {
+                let (pingState, pingSummary) = try await runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
+                XCTAssertEqual(pingState, .finished)
+                XCTAssertNotNil(pingSummary)
+                XCTAssertEqual(pingSummary!.totalCount, 1)
+                XCTAssertEqual(pingSummary!.errors, [PingSummary.PingErrorSummary(seqNum: 0, reason: expectedError.localizedDescription)])
+                
+            } catch {
+                XCTFail("Should not throw \(error)")
+            }
+        }
+        #else
+        XCTSkip("Skipped on Linux Platform")
+        #endif
+    }
+    
+    func testInvalidSequenceNumber() async throws {
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        let addressedEnvelopRewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject] = [
+            \AddressedEnvelope.data: [RewriteData(index: 27, byte: 0x02)] as AnyObject
+        ]
+
+        let pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 1)
+
+        let expectedError = PingError.invalidICMPResponse
+        do {
+            let (pingState, pingSummary) = try await runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
+            XCTAssertEqual(pingState, .finished)
+            XCTAssertNotNil(pingSummary)
+            XCTAssertEqual(pingSummary!.totalCount, 2) // since sequence number is invalid, no match request can be found in the history. Thus there will be two error reported
+            XCTAssertEqual(pingSummary!.errors, [PingSummary.PingErrorSummary(seqNum: 512, reason: expectedError.localizedDescription)]) // os will convert from big endian to little endian (0x002 -> 0x200)
+            XCTAssertEqual(pingSummary!.timeout, Set([UInt16(0)]))
+
+        } catch {
+            XCTFail("Should not throw \(error)")
+        }
+        #else
+        XCTSkip("Skipped on Linux Platform")
+        #endif
+    }
+    
+    func testInvalidChecksum() async throws {
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        let addressedEnvelopRewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject] = [
+            \AddressedEnvelope.data: [RewriteData(index: 22, byte: 0x56)] as AnyObject
+        ]
+
+        let pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 1)
+
+        let expectedError = PingError.invalidICMPChecksum
+        do {
+            let (pingState, pingSummary) = try await runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
+            XCTAssertEqual(pingState, .finished)
+            XCTAssertNotNil(pingSummary)
+            XCTAssertEqual(pingSummary!.totalCount, 1)
+            XCTAssertEqual(pingSummary!.errors, [PingSummary.PingErrorSummary(seqNum: 0, reason: expectedError.localizedDescription)])
+
+        } catch {
+            XCTFail("Should not throw \(error)")
+        }
+        #else
+        XCTSkip("Skipped on Linux Platform")
+        #endif
+    }
+
     func testCancelBeforeTestStarts() async throws {
         let networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected
         let pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 3)

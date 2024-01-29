@@ -73,6 +73,8 @@ public enum PingError: Error {
     case httpUnableToEstablishTLSConnection
     case httpMissingResult
     
+    case invalidHexFormat
+    
     case forTestingPurposeOnly
 }
 

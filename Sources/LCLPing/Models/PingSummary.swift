@@ -36,7 +36,7 @@ extension PingSummary {
             return lhs.seqNum == rhs.seqNum
         }
         
-        public let seqNum: UInt16
+        public let seqNum: UInt16?
         public let reason: String
     }
 }

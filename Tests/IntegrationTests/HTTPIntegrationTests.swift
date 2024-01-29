@@ -14,9 +14,9 @@ import XCTest
 import NIOCore
 @testable import LCLPing
 
-#if INTEGRATION_TEST && (os(macOS) || os(iOS) || os(watchOS) || os(tvOS) || swift(>=5.5))
+#if INTEGRATION_TEST && (os(macOS) || os(iOS) || os(watchOS) || os(tvOS) || swift(>=5.7))
 final class HTTPIntegrationTests: XCTestCase {
-    
+   
     private func runTest(
         networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected,
         pingConfig: LCLPing.PingConfiguration = .init(type: .http(LCLPing.PingConfiguration.HTTPOptions()), endpoint: .ipv4("http://127.0.0.1", 8080))
@@ -31,7 +31,7 @@ final class HTTPIntegrationTests: XCTestCase {
         }
         return (PingState.error, nil)
     }
-    
+
     func testfullyConnectedNetwork() async throws {
         let (pingStatus, pingSummary) = try await runTest()
         switch pingStatus {
@@ -255,7 +255,7 @@ final class HTTPIntegrationTests: XCTestCase {
             XCTFail("Invalid PingConfig. Need HTTP, but received \(pingConfig.type)")
         }
     }
-    
+
     @MainActor
     func testCancelDuringTest() async throws {
         for waitSecond in [2, 4, 5, 6, 7, 9] {
@@ -287,7 +287,7 @@ final class HTTPIntegrationTests: XCTestCase {
             }
         }
     }
-    
+
     func testCancelAfterTestFinishes() async throws {
         let networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected
         let pingConfig: LCLPing.PingConfiguration = .init(type: .http(LCLPing.PingConfiguration.HTTPOptions()), endpoint: .ipv4("http://127.0.0.1", 8080), count: 3)
