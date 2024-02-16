@@ -63,7 +63,7 @@ final class HTTPIntegrationTests: XCTestCase {
     }
 
     func testInvalidIPURL() async throws {
-        let expectedError = PingError.invalidIPv4URL
+        let expectedError = PingError.httpMissingHost
         do {
             let pingConfig = LCLPing.PingConfiguration(type: .http(.init()), endpoint: .ipv4("ww.invalid-url.^&*", 8080))
             let _ = try await runTest(pingConfig: pingConfig)
@@ -141,17 +141,20 @@ final class HTTPIntegrationTests: XCTestCase {
                     switch param.statusCode {
                     case 300...399:
                         pingSummary?.errors.forEach { element in
-                            XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum), true)
+                            XCTAssertNotNil(element.seqNum)
+                            XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum!), true)
                             XCTAssertEqual(element.reason, PingError.httpRedirect.localizedDescription)
                         }
                     case 400...499:
                         pingSummary?.errors.forEach { element in
-                            XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum), true)
+                            XCTAssertNotNil(element.seqNum)
+                            XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum!), true)
                             XCTAssertEqual(element.reason, PingError.httpClientError.localizedDescription)
                         }
                     case 500...599:
                         pingSummary?.errors.forEach { element in
-                            XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum), true)
+                            XCTAssertNotNil(element.seqNum)
+                            XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum!), true)
                             XCTAssertEqual(element.reason, PingError.httpServerError.localizedDescription)
                         }
                     default:

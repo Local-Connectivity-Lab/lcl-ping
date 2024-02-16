@@ -90,13 +90,13 @@ internal struct ICMPPing: Pingable {
                         InboundHeaderRewriter(rewriteHeaders: rewriteHeaders),
                         IPDecoder(),
                         ICMPDecoder(),
-                        ICMPDuplexer(configuration: pingConfiguration)
+                        ICMPDuplexer(configuration: pingConfiguration, resolvedAddress: resolvedAddress)
                        ]
 #else // !INTEGRATION_TEST
                        let handlers: [ChannelHandler] = [
                         IPDecoder(),
                         ICMPDecoder(),
-                        ICMPDuplexer(configuration: pingConfiguration)
+                        ICMPDuplexer(configuration: pingConfiguration, resolvedAddress: resolvedAddress)
                        ]
 #endif // !INTEGRATION_TEST
 

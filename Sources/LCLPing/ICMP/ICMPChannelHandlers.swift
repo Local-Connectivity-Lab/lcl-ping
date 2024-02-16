@@ -41,6 +41,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
     private var state: State
     
     private var configuration: LCLPing.PingConfiguration
+    private let resolvedAddress: SocketAddress
     
     /// sequence number to ICMP request
     private var seqToRequest: Dictionary<UInt16, ICMPHeader>
@@ -51,13 +52,14 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
     
     private var timerScheduler: TimerScheduler<UInt16>
     
-    init(configuration: LCLPing.PingConfiguration) {
+    init(configuration: LCLPing.PingConfiguration, resolvedAddress: SocketAddress) {
         self.configuration = configuration
         self.seqToRequest = [:]
         self.seqToResponse = [:]
         self.responseSeqNumSet = Set()
         self.timerScheduler = TimerScheduler()
         self.state = .inactive
+        self.resolvedAddress = resolvedAddress
     }
     
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
@@ -71,16 +73,8 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         var icmpRequest = ICMPHeader(idenifier: identifier, sequenceNum: sequenceNum)
         icmpRequest.setChecksum()
         
-        let ipAddress: String
-        switch self.configuration.endpoint {
-        case .ipv4(let addr, _):
-            ipAddress = addr
-        case .ipv6(let addr):
-            ipAddress = addr
-        }
-        
         let buffer = context.channel.allocator.buffer(bytes: icmpRequest.toData())
-        let evelope = AddressedEnvelope(remoteAddress: try! SocketAddress(ipAddress: ipAddress, port: 0), data: buffer)
+        let evelope = AddressedEnvelope(remoteAddress: resolvedAddress, data: buffer)
         
         context.writeAndFlush(self.wrapOutboundOut(evelope), promise: promise)
         self.seqToRequest[sequenceNum] = icmpRequest
