@@ -16,18 +16,17 @@ import NIO
 import NIOCore
 import NIOHTTP1
 
-
 internal final class HTTPDuplexer: ChannelDuplexHandler {
     typealias InboundIn = LatencyEntry
     typealias InboundOut = PingResponse
     typealias OutboundIn = HTTPOutboundIn
     typealias OutboundOut = (UInt16, HTTPRequestHead) // sequence number, HTTP Request
-    
+
     private enum State {
         case operational
         case error
         case inactive
-        
+
         var isOperational: Bool {
             switch self {
             case .operational:
@@ -37,20 +36,20 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
             }
         }
     }
-    
+
     private var state: State
-    
+
     private let url: URL
     private let configuration: LCLPing.PingConfiguration
     private let httpOptions: LCLPing.PingConfiguration.HTTPOptions
-    
+
     init(url: URL, httpOptions: LCLPing.PingConfiguration.HTTPOptions, configuration: LCLPing.PingConfiguration) {
         self.url = url
         self.httpOptions = httpOptions
         self.configuration = configuration
         self.state = .inactive
     }
-    
+
     func channelActive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
@@ -63,7 +62,7 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
             self.state = .operational
         }
     }
-    
+
     func channelInactive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
@@ -76,33 +75,33 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
             assertionFailure("[HTTPDuplexer][\(#function)]: received inactive signal when channel is already in inactive state.")
         }
     }
-    
+
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         let sequenceNumber = self.unwrapOutboundIn(data)
         guard self.state.isOperational else {
             context.fireChannelRead(self.wrapInboundOut(.error(sequenceNumber, ChannelError.ioOnClosedChannel)))
             return
         }
-        
+
         var header = HTTPHeaders(self.httpOptions.httpHeaders.map { ($0.key, $0.value) })
         if !self.httpOptions.httpHeaders.keys.contains("Host"), let host = self.url.host {
             header.add(name: "Host", value: host)
         }
-        
+
         logger.debug("[HTTPDuplexer]: Header is \(header)")
         logger.debug("[HTTPDuplexer]: url is \(self.url.absoluteString)")
-        
+
         let requestHead = HTTPRequestHead(version: .http1_1, method: .GET, uri: url.path.isEmpty ? "/" : url.path, headers: header)
         context.write(self.wrapOutboundOut((sequenceNumber, requestHead)), promise: promise)
     }
-    
+
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let latencyEntry = self.unwrapInboundIn(data)
         guard self.state.isOperational else {
             logger.debug("[HTTPDuplexer][\(#function)]: drop data: \(data) because channel is not in operational state")
             return
         }
-        
+
         switch latencyEntry.latencyStatus {
         case .finished:
             let latency = (latencyEntry.responseEnd - latencyEntry.requestStart) * 1000.0 - latencyEntry.serverTiming
@@ -127,11 +126,11 @@ internal final class HTTPDuplexer: ChannelDuplexHandler {
             self.state = .error
             context.fireChannelRead(self.wrapInboundOut(.error(latencyEntry.seqNum, PingError.invalidLatencyResponseState)))
         }
-        
+
         context.channel.close(mode: .all, promise: nil)
         logger.debug("[HTTPDuplexer][\(#function)]: Closing all channels ... because packet #\(latencyEntry.seqNum) done")
     }
-    
+
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         guard self.state.isOperational else {
             logger.debug("[HTTPDuplexer]: already in error state. ignore error \(error)")
@@ -149,12 +148,12 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
     typealias InboundOut = LatencyEntry // latency
     typealias OutboundIn = (UInt16, HTTPRequestHead) // seqNum, HTTP Request
     typealias OutboundOut = HTTPClientRequestPart
-    
+
     private enum State {
         case operational
         case error
         case inactive
-        
+
         var isOperational: Bool {
             switch self {
             case .operational:
@@ -164,21 +163,21 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
             }
         }
     }
-    
+
     private var state: State
-    
+
     private let configuration: LCLPing.PingConfiguration
     private let httpOptions: LCLPing.PingConfiguration.HTTPOptions
     private var latencyEntry: LatencyEntry?
     private var timerScheduler: TimerScheduler<UInt16>
-    
+
     init(configuration: LCLPing.PingConfiguration, httpOptions: LCLPing.PingConfiguration.HTTPOptions) {
         self.configuration = configuration
         self.httpOptions = httpOptions
         self.timerScheduler = TimerScheduler()
         self.state = .inactive
     }
-    
+
     func channelActive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
@@ -192,7 +191,7 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
             self.state = .operational
         }
     }
-    
+
     func channelInactive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
@@ -206,7 +205,7 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
             assertionFailure("[HTTPTracingHandler][\(#function)]: received inactive signal when channel is already in inactive state.")
         }
     }
-    
+
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         let (sequenceNum, httpRequest) = self.unwrapOutboundIn(data)
         guard self.state.isOperational else {
@@ -214,13 +213,13 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
             context.fireErrorCaught(ChannelError.ioOnClosedChannel)
             return
         }
-        
+
         var le = LatencyEntry(seqNum: sequenceNum)
         le.requestStart = Date.currentTimestamp
         self.latencyEntry = le
         context.write(self.wrapOutboundOut(.head(httpRequest)), promise: promise)
         context.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: promise)
-        
+
         timerScheduler.schedule(delay: self.configuration.timeout, key: sequenceNum) { [weak self, context] in
             if let self = self, var le = self.latencyEntry {
                 context.eventLoop.execute {
@@ -232,13 +231,13 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
             }
         }
     }
-    
+
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         guard self.state.isOperational else {
             logger.debug("[HTTPTracingHandler][\(#function)]: drop data: \(data) because channel is not in operational state")
             return
         }
-        
+
         let httpResponse: HTTPClientResponsePart = self.unwrapInboundIn(data)
         if self.latencyEntry == nil {
             self.state = .error
@@ -260,7 +259,7 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
             default:
                 self.latencyEntry!.latencyStatus = .error(statusCode)
             }
-        case .body(_):
+        case .body:
             break
         case .end:
             if self.latencyEntry == nil {
@@ -268,7 +267,7 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
                 context.fireErrorCaught(PingError.httpNoMatchingRequest)
                 return
             }
-            
+
             self.timerScheduler.remove(key: self.latencyEntry!.seqNum)
             self.latencyEntry!.responseEnd = Date.currentTimestamp
             if self.latencyEntry!.latencyStatus == .waiting {
@@ -278,7 +277,7 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
             self.latencyEntry = nil
         }
     }
-    
+
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         guard self.state.isOperational else {
             logger.debug("[HTTPTracingHandler]: already in error state. ignore error \(error)")
@@ -289,32 +288,31 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
     }
 }
 
-
 #if os(macOS) || os(iOS)
 internal final class HTTPHandler: NSObject {
     init(useServerTiming: Bool) {
         self.useServerTiming = useServerTiming
         super.init()
     }
-    
+
     private let useServerTiming: Bool
-    
+
     private var task: Task<(), Never>?
-    
+
     private var session: URLSession?
-    private var taskToSeqNum: Dictionary<Int, UInt16> = [:]
-    private var taskToLatency: Dictionary<Int, Double?> = [:]
+    private var taskToSeqNum: [Int: UInt16] = [:]
+    private var taskToLatency: [Int: Double?] = [:]
     private var userConfiguration: LCLPing.PingConfiguration?
-    
+
     private var continuation: AsyncStream<PingResponse>.Continuation?
-    
-    func execute(configuration: LCLPing.PingConfiguration) async throws -> AsyncStream<PingResponse>  {
+
+    func execute(configuration: LCLPing.PingConfiguration) async throws -> AsyncStream<PingResponse> {
         self.userConfiguration = configuration
         let urlsessionConfig: URLSessionConfiguration = .ephemeral
         urlsessionConfig.timeoutIntervalForRequest = configuration.timeout
         urlsessionConfig.requestCachePolicy = .reloadIgnoringLocalCacheData
         self.session = URLSession(configuration: urlsessionConfig, delegate: self, delegateQueue: nil)
-        
+
         let request: URLRequest
         switch configuration.endpoint {
         case .ipv4(let url, let port):
@@ -322,7 +320,7 @@ internal final class HTTPHandler: NSObject {
                 cancel()
                 throw PingError.invalidIPv4URL
             }
-            
+
             // probe the server to see if it supports `Server-Timing`
             if useServerTiming {
                 switch await probe(url: url) {
@@ -333,14 +331,14 @@ internal final class HTTPHandler: NSObject {
                     break
                 }
             }
-            
+
             request = prepareRequest(url: url)
         case .ipv6(let url):
             guard let url = prepareURL(url: url, port: nil) else {
                 cancel()
                 throw PingError.invalidIPv6URL
             }
-            
+
             // probe the server to see if it supports `Server-Timing`
             if useServerTiming {
                 switch await probe(url: url) {
@@ -351,22 +349,22 @@ internal final class HTTPHandler: NSObject {
                     break
                 }
             }
-            
+
             request = prepareRequest(url: url)
         }
-        
+
         let stream = AsyncStream<PingResponse> { continuation in
             self.continuation = continuation
             continuation.onTermination = { _ in
                 self.cancel()
             }
         }
-        
+
         guard let session else {
             // TODO: change fatalError to some other error message
             fatalError("Unable to create URLSession")
         }
-        
+
         let now = Date()
         for cnt in 0..<configuration.count {
             session.delegateQueue.schedule(after: .init(now + configuration.interval * Double(cnt)), tolerance: .microseconds(100), options: nil) {
@@ -379,7 +377,7 @@ internal final class HTTPHandler: NSObject {
 
         return stream
     }
-    
+
     func cancel() {
         task?.cancel()
         session?.invalidateAndCancel()
@@ -387,7 +385,7 @@ internal final class HTTPHandler: NSObject {
 }
 
 extension HTTPHandler {
-    
+
     /// Probe the given URL to check if the remote server supports `Server-Timing` attribute
     ///
     /// - Parameters:
@@ -416,8 +414,7 @@ extension HTTPHandler {
             return .failure(.invalidHTTPSession)
         }
     }
-    
-    
+
     /// Create an URL object from the given URL string and optional port number
     ///
     /// - Parameters:
@@ -434,7 +431,7 @@ extension HTTPHandler {
         }
         return requestURL
     }
-    
+
     /// Create URLRequest object given the `url`
     ///
     /// - Parameters:
@@ -468,7 +465,7 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
                 logger.debug("task \(taskIdentifier) has error: \(urlError.localizedDescription)")
                 self.continuation?.yield(.error(UInt16(taskIdentifier), urlError))
             }
-            
+
         } else {
             // no error, let's check the data received
             guard let response = task.response else {
@@ -476,52 +473,52 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
                 logger.debug("request #\(taskIdentifier) doesnt have response")
                 return
             }
-            
+
             let statusCode = (response as! HTTPURLResponse).statusCode
             switch statusCode {
             case 200...299:
                 guard taskToLatency.keys.contains(taskIdentifier) && taskToSeqNum.keys.contains(taskIdentifier) else {
                     fatalError("Unknown URLSession Datatask \(taskIdentifier)")
                 }
-                
+
                 if let latency = taskToLatency[taskIdentifier]!, let seqNum = taskToSeqNum[taskIdentifier] {
                     self.continuation?.yield(.ok(seqNum, latency, Date.currentTimestamp))
                 }
             default:
                 self.continuation?.yield(.error(UInt16(taskIdentifier), PingError.httpRequestFailed(statusCode)))
             }
-            
+
             // completes the async stream
             if let userConfiguration = self.userConfiguration, taskToSeqNum.count == userConfiguration.count {
                 continuation?.finish()
                 session.finishTasksAndInvalidate()
             }
         }
-        
+
     }
-    
+
     func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
         guard let metric = metrics.transactionMetrics.last else {
             return
         }
-        
+
         let taskIdentifier = task.taskIdentifier
-        
+
         let requestStart = metric.requestStartDate?.timeIntervalSince1970 ?? 0
         let responseEnd = metric.responseEndDate?.timeIntervalSince1970 ?? 0
-        
+
         if !useServerTiming {
             self.taskToLatency[taskIdentifier] = (responseEnd - requestStart) * 1000.0
             return
         }
-        
+
         guard let response = metric.response else {
             logger.debug("no response. maybe timeout")
             return
         }
 
         let httpResponse = (response as! HTTPURLResponse)
-        
+
         if (200...299).contains(httpResponse.statusCode) {
             if let serverTimingField = httpResponse.value(forHTTPHeaderField: "Server-Timing") {
                 let totalTiming: Double = matchServerTiming(field: serverTimingField)
@@ -537,5 +534,3 @@ extension HTTPHandler: URLSessionTaskDelegate, URLSessionDataDelegate {
     }
 }
 #endif
-
-

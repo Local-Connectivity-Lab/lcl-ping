@@ -12,16 +12,15 @@
 
 import Foundation
 
-
 internal struct LatencyEntry {
     var requestStart: TimeInterval = .zero
     var responseStart: TimeInterval = .zero
     var responseEnd: TimeInterval = .zero
     var serverTiming: TimeInterval = .zero
     var latencyStatus: LatencyEntry.Status
-    
+
     let seqNum: UInt16
-    
+
     init(seqNum: UInt16) {
         self.seqNum = seqNum
         self.latencyStatus = .waiting

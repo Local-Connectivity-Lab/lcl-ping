@@ -27,7 +27,7 @@ internal enum PingResponse: Equatable {
             return false
         }
     }
-    
+
     case ok(UInt16, Double, TimeInterval)
     case duplicated(UInt16)
     case timeout(UInt16)

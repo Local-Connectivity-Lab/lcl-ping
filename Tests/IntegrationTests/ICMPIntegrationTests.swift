@@ -19,7 +19,7 @@ final class ICMPIntegrationTests: XCTestCase {
 
     private func runTest(
         networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected,
-        rewriteHeader: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>:AnyObject]? = nil,
+        rewriteHeader: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject]? = nil,
         pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0))
     ) async throws -> (PingState, PingSummary?) {
         var icmpPing = ICMPPing(networkLinkConfig: networkLinkConfig, rewriteHeaders: rewriteHeader)
@@ -71,7 +71,7 @@ final class ICMPIntegrationTests: XCTestCase {
         }
     }
 
-    func testMinorInOutPacketDrop() async throws  {
+    func testMinorInOutPacketDrop() async throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.1, outPacketLoss: 0.1)
         let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
         switch pingStatus {
@@ -164,9 +164,9 @@ final class ICMPIntegrationTests: XCTestCase {
         let addressedEnvelopRewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject] = [
             \AddressedEnvelope.data: [RewriteData(index: 0, byte: 0x55)] as AnyObject
         ]
-        
+
         let pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 1)
-        
+
         let expectedError = PingError.invalidIPVersion
         do {
             let (pingState, pingSummary) = try await runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
@@ -174,7 +174,7 @@ final class ICMPIntegrationTests: XCTestCase {
             XCTAssertNotNil(pingSummary)
             XCTAssertEqual(pingSummary!.totalCount, 1)
             XCTAssertEqual(pingSummary!.errors, [PingSummary.PingErrorSummary(seqNum: nil, reason: expectedError.localizedDescription)])
-            
+
         } catch {
             XCTFail("Should not throw \(error)")
         }
@@ -182,7 +182,7 @@ final class ICMPIntegrationTests: XCTestCase {
         XCTSkip("Skipped on Linux Platform")
         #endif
     }
-    
+
     func testInvalidIPProtocol() async throws {
         #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
         let addressedEnvelopRewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject] = [
@@ -198,7 +198,7 @@ final class ICMPIntegrationTests: XCTestCase {
             XCTAssertNotNil(pingSummary)
             XCTAssertEqual(pingSummary!.totalCount, 1)
             XCTAssertEqual(pingSummary!.errors, [PingSummary.PingErrorSummary(seqNum: nil, reason: expectedError.localizedDescription)])
-            
+
         } catch {
             XCTFail("Should not throw \(error)")
         }
@@ -206,7 +206,7 @@ final class ICMPIntegrationTests: XCTestCase {
         XCTSkip("Skipped on Linux Platform")
         #endif
     }
-    
+
     func testInvalidICMPTypeAndCode() async throws {
         #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
         let testParams: [(Int8, Int8, PingError)] = [
@@ -239,7 +239,7 @@ final class ICMPIntegrationTests: XCTestCase {
             (0xC, 0x2, PingError.icmpBadLength),
             (0xD, 0x9, PingError.unknownError("Received unknown ICMP type (13) and ICMP code (9)"))
         ]
-        
+
         for testParam in testParams {
             let (type, code, expectedError) = testParam
             let addressedEnvelopRewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject] = [
@@ -253,7 +253,7 @@ final class ICMPIntegrationTests: XCTestCase {
                 XCTAssertNotNil(pingSummary)
                 XCTAssertEqual(pingSummary!.totalCount, 1)
                 XCTAssertEqual(pingSummary!.errors, [PingSummary.PingErrorSummary(seqNum: 0, reason: expectedError.localizedDescription)])
-                
+
             } catch {
                 XCTFail("Should not throw \(error)")
             }
@@ -262,7 +262,7 @@ final class ICMPIntegrationTests: XCTestCase {
         XCTSkip("Skipped on Linux Platform")
         #endif
     }
-    
+
     func testInvalidSequenceNumber() async throws {
         #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
         let addressedEnvelopRewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject] = [
@@ -287,7 +287,7 @@ final class ICMPIntegrationTests: XCTestCase {
         XCTSkip("Skipped on Linux Platform")
         #endif
     }
-    
+
     func testInvalidChecksum() async throws {
         #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
         let addressedEnvelopRewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject] = [

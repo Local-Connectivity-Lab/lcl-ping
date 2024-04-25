@@ -23,7 +23,7 @@ extension Date {
             return Date().timeIntervalSince1970
         }
     }
-    
+
     /// Create a string representation of the given date in "MM/dd/yyyy HH:mm:ss" format, with the given time zone
     /// - Parameters
     ///     - timeInterval: the time interval, in second, since 01/01/1970.
@@ -35,7 +35,7 @@ extension Date {
             formatter.timeZone = timeZone
         }
         formatter.dateFormat = "MM/dd/yyyy HH:mm:ss"
-        
+
         let date = Date(timeIntervalSince1970: timeInterval)
         return formatter.string(from: date)
     }

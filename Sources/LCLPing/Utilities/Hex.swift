@@ -12,7 +12,6 @@
 
 import Foundation
 
-
 let charA = UInt8(UnicodeScalar("a").value)
 let char0 = UInt8(UnicodeScalar("0").value)
 
@@ -32,7 +31,7 @@ private func htoi(_ value: UInt8) throws -> UInt8 {
 }
 
 extension Data {
-    
+
     /// Initialize the `Data` from the hex string value
     init(hexString: String) throws {
         self.init()

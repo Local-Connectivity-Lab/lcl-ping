@@ -62,7 +62,7 @@ extension Sequence where Element == UInt8 {
 
         return ~sum
     }
-    
+
     private func onesComplementAdd<Integer: FixedWidthInteger>(lhs: Integer, rhs: Integer) -> Integer {
         var (sum, overflowed) = lhs.addingReportingOverflow(rhs)
         if overflowed {

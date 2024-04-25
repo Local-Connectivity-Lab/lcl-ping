@@ -13,7 +13,6 @@
 import Foundation
 import NIOCore
 
-
 /// Decode the given byte buffer into object of user-defined type
 ///
 /// Input `data` will be passed in as reference
@@ -26,7 +25,7 @@ func decodeByteBuffer<Out>(of: Out.Type, data: inout ByteBuffer) throws -> Out {
     guard let buffer = data.readBytes(length: readLength) else {
         throw RuntimeError.insufficientBytes("Not enough bytes in the reponse message. Need \(readLength) bytes. But received \(data.readableBytes)")
     }
-    
+
     let ret = buffer.withUnsafeBytes { $0.load(as: Out.self) }
     return ret
 }

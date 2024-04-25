@@ -65,7 +65,7 @@ internal func summarizePingResponse(_ pingResponses: [PingResponse], host: Socke
     var pingResults: [PingResult] = []
     var timeout: Set<UInt16> = Set()
     var duplicates: Set<UInt16> = Set()
-    
+
     for pingResponse in pingResponses {
         switch pingResponse {
         case .ok(let sequenceNum, let latency, let timstamp):
@@ -86,11 +86,11 @@ internal func summarizePingResponse(_ pingResponses: [PingResponse], host: Socke
             }
         }
     }
-    
+
     let pingResultLen = pingResults.count
     let avg = pingResults.avg
     let stdDev = pingResults.stdDev
-    
+
     let pingSummary = PingSummary(min: localMin,
                                   max: localMax,
                                   avg: avg,
@@ -104,25 +104,24 @@ internal func summarizePingResponse(_ pingResponses: [PingResponse], host: Socke
                                   errors: errors,
                                   ipAddress: host.ipAddress ?? "",
                                   port: host.port ?? 0, protocol: host.protocol.rawValue)
-    
+
     return pingSummary
 }
-
 
 internal func printSummary(_ pingSummary: PingSummary) {
     print("====== Ping Result ======")
     print("Host: \(pingSummary.ipAddress)")
     print("Total Count: \(pingSummary.totalCount)")
-    
+
     print("====== Details ======")
-    
+
     for detail in pingSummary.details {
         print("#\(detail.seqNum): \(detail.latency.round(to: 2)) ms.  [\(Date.toDateString(timeInterval: detail.timestamp))]")
     }
-    
+
     print("Duplicate: \(pingSummary.duplicates.sorted())")
     print("Timeout: \(pingSummary.timeout.sorted())")
-    
+
     print("======= Statistics =======")
     print("Jitter: \(pingSummary.jitter.round(to: 2)) ms")
     print("Average: \(pingSummary.avg.round(to: 2)) ms")
@@ -130,5 +129,5 @@ internal func printSummary(_ pingSummary: PingSummary) {
     print("Min: \(pingSummary.min.round(to: 2)) ms")
     print("Max: \(pingSummary.max.round(to: 2)) ms")
     print("Standard Deviation: \(pingSummary.stdDev.round(to: 2)) ms")
-    
+
 }

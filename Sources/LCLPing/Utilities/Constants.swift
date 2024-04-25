@@ -27,8 +27,8 @@ var logger: Logger {
     #endif
         return logger
     }
-    
+
     set {
-        
+
     }
 }

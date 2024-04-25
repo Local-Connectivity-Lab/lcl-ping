@@ -12,7 +12,7 @@
 
 import Foundation
 
-public enum PingError: Error {    
+public enum PingError: Error {
     case operationNotSupported(String)
     case unknownError(String)
     case invalidConfiguration(String)
@@ -20,7 +20,7 @@ public enum PingError: Error {
     case sendPingFailed(Error)
     case invalidLatencyResponseState
     case taskIsCancelled
-    
+
     case failedToInitialzeChannel
     case invalidICMPResponse
     case invalidIPv4URL
@@ -29,8 +29,7 @@ public enum PingError: Error {
     case invalidIPProtocol
     case invalidICMPChecksum
     case invalidICMPIdentifier
-    
-    
+
     case icmpDestinationNetworkUnreachable
     case icmpDestinationHostUnreachable
     case icmpDestinationProtocoltUnreachable
@@ -58,10 +57,10 @@ public enum PingError: Error {
     case icmpPointerIndicatesError
     case icmpMissingARequiredOption
     case icmpBadLength
-    
+
     case invalidHTTPSession
     case httpRequestFailed(Int)
-    
+
     case httpNoMatchingRequest
     case httpNoResponse
     case httpRedirect
@@ -72,9 +71,9 @@ public enum PingError: Error {
     case httpMissingSchema
     case httpUnableToEstablishTLSConnection
     case httpMissingResult
-    
+
     case invalidHexFormat
-    
+
     case forTestingPurposeOnly
 }
 

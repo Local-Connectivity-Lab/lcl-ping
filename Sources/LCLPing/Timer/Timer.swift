@@ -19,14 +19,14 @@ import Foundation
 internal struct TimerScheduler<Key: Hashable> {
     private let LABEL = "com.lcl.lclping"
 
-    private var tracker: Dictionary<Key, DispatchWorkItem>
+    private var tracker: [Key: DispatchWorkItem]
     private let queue: DispatchQueue
-    
+
     init() {
         self.queue = DispatchQueue(label: LABEL, qos: .utility)
         self.tracker = [:]
     }
-    
+
     /// Schedule a timer for the given key with the given operation when the timer is fired
     ///
     /// If there is already a timer associated with the key, then the new operation will be ignored. Calling this function will result in a no-op.
@@ -39,20 +39,20 @@ internal struct TimerScheduler<Key: Hashable> {
             logger.debug("[\(#function)]: already scheduled a timer for packet #\(key). Ignore scheduling request")
             return
         }
-        
+
         let timer = DispatchWorkItem(block: operation)
-        
+
         self.tracker.updateValue(timer, forKey: key)
         self.queue.asyncAfter(deadline: .now() + delay, execute: timer)
     }
-    
+
     /// Check whether the key has already associated with an existing timer
     ///
     /// - Returns: true if the key is associated with a timer; false otherwise
     func containsKey(_ key: Key) -> Bool {
         return self.tracker.keys.contains(key)
     }
-    
+
     /// Remove and cancel the timer associated with the given key if the timer is not cancelled.
     ///
     /// If the key doesn't have any associated timer or the timer has already been cancelled, then calling this function will result in a no-op
@@ -65,7 +65,7 @@ internal struct TimerScheduler<Key: Hashable> {
             timer.cancel()
         }
     }
-    
+
     /// Reset and cancel all timers that are currently scheduled
     ///
     /// The capacity will be kept

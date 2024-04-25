@@ -13,7 +13,7 @@
 import Foundation
 import NIOCore
 
-func createByteBuffer<T>( _ original:  inout T) -> ByteBuffer {
+func createByteBuffer<T>( _ original: inout T) -> ByteBuffer {
     return withUnsafeBytes(of: &original) {
         return ByteBuffer(bytes: $0)
     }

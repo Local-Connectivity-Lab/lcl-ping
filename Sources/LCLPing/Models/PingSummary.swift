@@ -13,7 +13,7 @@
 import Foundation
 import NIOCore
 
-public struct PingSummary: Equatable, Encodable {    
+public struct PingSummary: Equatable, Encodable {
     public let min: Double
     public let max: Double
     public let avg: Double
@@ -35,7 +35,7 @@ extension PingSummary {
         public static func == (lhs: PingSummary.PingErrorSummary, rhs: PingSummary.PingErrorSummary) -> Bool {
             return lhs.seqNum == rhs.seqNum
         }
-        
+
         public let seqNum: UInt16?
         public let reason: String
     }

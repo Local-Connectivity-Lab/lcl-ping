@@ -22,27 +22,27 @@ internal struct IPv4Header {
     let timeToLive: UInt8
     let `protocol`: UInt8
     let headerChecksum: UInt16
-    let sourceAddress: (UInt8,UInt8,UInt8,UInt8)
-    let destinationAddress: (UInt8,UInt8,UInt8,UInt8)
+    let sourceAddress: (UInt8, UInt8, UInt8, UInt8)
+    let destinationAddress: (UInt8, UInt8, UInt8, UInt8)
 }
 
 /// The ICMP request message header
 internal struct ICMPHeader {
-    
+
     // ICMP message type (ECHO_REQUEST)
     let type: UInt8
     let code: UInt8
     var checkSum: UInt16
-    
+
     // the packet identifier
     let idenifier: UInt16
-    
+
     // the packet sequence number
     let sequenceNum: UInt16
-    
+
     var payload: ICMPRequestPayload
-    
-    init(type: UInt8 = ICMPType.EchoRequest.rawValue, code: UInt8 = 0, idenifier: UInt16, sequenceNum: UInt16) {
+
+    init(type: UInt8 = ICMPType.echoRequest.rawValue, code: UInt8 = 0, idenifier: UInt16, sequenceNum: UInt16) {
         self.type = type
         self.code = code
         self.checkSum = 0
@@ -50,13 +50,12 @@ internal struct ICMPHeader {
         self.sequenceNum = sequenceNum
         self.payload = ICMPRequestPayload(timestamp: Date.currentTimestamp, identifier: self.idenifier)
     }
-    
+
     /// Calculate and then set the checksum of the request header
     mutating func setChecksum() {
         self.checkSum = calcChecksum()
     }
-    
-    
+
     /// Calculate the checksum of the given ICMP header
     func calcChecksum() -> UInt16 {
         let typecode = Data([self.type, self.code]).withUnsafeBytes { $0.load(as: UInt16.self) }
@@ -88,7 +87,7 @@ struct ICMPRequestPayload: Hashable {
 }
 
 extension ICMPRequestPayload {
-    
+
     /// Convert ICMP request payload in the header to byte array
     var data: Data {
         var payload = self
@@ -98,10 +97,10 @@ extension ICMPRequestPayload {
 
 /// ICMP message type
 internal enum ICMPType: UInt8 {
-    
+
     /// ICMP Request to host
-    case EchoRequest = 8
-    
+    case echoRequest = 8
+
     /// ICMP Reply from host
-    case EchoReply = 0
+    case echoReply = 0
 }

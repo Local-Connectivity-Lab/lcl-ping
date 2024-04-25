@@ -20,9 +20,8 @@ import Collections
 
 typealias HTTPOutboundIn = UInt16
 
-
 internal struct HTTPPing: Pingable {
-    
+
     var summary: PingSummary? {
         get {
             // return empty if ping is still running
@@ -38,7 +37,7 @@ internal struct HTTPPing: Pingable {
     private(set) var pingStatus: PingState = .ready
     private var pingSummary: PingSummary?
     private let httpOptions: LCLPing.PingConfiguration.HTTPOptions
-    
+
 #if INTEGRATION_TEST
     private var networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration?
     internal init(httpOptions: LCLPing.PingConfiguration.HTTPOptions, networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration) {
@@ -46,13 +45,13 @@ internal struct HTTPPing: Pingable {
         self.networkLinkConfig = networkLinkConfig
     }
 #endif
-    
+
     internal init(httpOptions: LCLPing.PingConfiguration.HTTPOptions) {
         self.httpOptions = httpOptions
     }
-    
+
     // TODO: implement non-async version
-    
+
     mutating func start(with pingConfiguration: LCLPing.PingConfiguration) async throws {
         let addr: String
         var port: UInt16
@@ -63,24 +62,24 @@ internal struct HTTPPing: Pingable {
         case .ipv4(let address, .some(let p)):
             addr = address
             port = p
-        case .ipv6(_):
+        case .ipv6:
             throw PingError.operationNotSupported("IPv6 currently not supported")
         }
-        
+
         logger.debug("[\(#function)]: using address: \(addr), port: \(port)")
-        
+
         guard let url = URL(string: addr) else {
             throw PingError.invalidIPv4URL
         }
-        
+
         guard let host = url.host else {
             throw PingError.httpMissingHost
         }
-        
+
         guard let schema = url.scheme, ["http", "https"].contains(schema) else {
             throw PingError.httpMissingSchema
         }
-        
+
         let httpOptions = self.httpOptions
 #if INTEGRATION_TEST
         let networkLinkConfig = self.networkLinkConfig
@@ -91,31 +90,31 @@ internal struct HTTPPing: Pingable {
         defer {
             try! eventLoopGroup.syncShutdownGracefully()
         }
-        
+
         let resolvedAddress = try SocketAddress.makeAddressResolvingHost(host, port: Int(port))
         logger.debug("resolved address is \(resolvedAddress)")
-        
+
         if pingStatus == .stopped || pingStatus == .error {
             return
         }
-        
+
         pingStatus = .running
         do {
             let pingResponses = try await withThrowingTaskGroup(of: PingResponse?.self, returning: [PingResponse].self) { group in
                 var pingResponses: [PingResponse] = []
-                
+
                 for cnt in 0..<pingConfiguration.count {
                     if pingStatus == .stopped {
                         logger.debug("group task is cancelled")
                         group.cancelAll()
                         return pingResponses
                     }
-                    
+
                     logger.debug("added task #\(cnt)")
                     _ = group.addTaskUnlessCancelled {
                         // NOTE: Task.sleep respects cooperative cancellation. That is, it will throw a cancellation error and finish early if its current task is cancelled.
                         try await Task.sleep(nanoseconds: UInt64(cnt) * pingConfiguration.interval.nanosecond)
-                        
+
                         guard Task.isCancelled == false else {
                             return nil
                         }
@@ -143,13 +142,13 @@ internal struct HTTPPing: Pingable {
 
                             return try NIOAsyncChannel<PingResponse, HTTPOutboundIn>(wrappingChannelSynchronously: channel)
                         }.get()
-                        
+
                         asyncChannel.channel.pipeline.fireChannelActive()
-                        
+
                         logger.debug("pipeline is: \(asyncChannel.channel.pipeline.debugDescription)")
-                        
+
                         logger.debug("write packet #\(cnt)")
-                        
+
                         let result = try await asyncChannel.executeThenClose { inbound, outbound in
                             try await outbound.write(cnt)
                             defer {
@@ -179,12 +178,12 @@ internal struct HTTPPing: Pingable {
                     print("received error: \(error)")
                     throw error
                 }
-                
+
                 if pingStatus == .stopped {
                     logger.debug("[\(#function)]: ping is cancelled. Cancel all other tasks in the task group")
                     group.cancelAll()
                 }
-                
+
                 return pingResponses
             }
             logger.debug("received result from the channel: \(pingResponses)")
@@ -202,8 +201,6 @@ internal struct HTTPPing: Pingable {
             throw PingError.sendPingFailed(error)
         }
 
-        
-        
         // MARK: http executor on macOS/iOS
 //        let httpExecutor = HTTPHandler(useServerTiming: false)
 //
@@ -224,9 +221,9 @@ internal struct HTTPPing: Pingable {
 //            pingStatus = .failed
 //            print("Error \(error)")
 //        }
-        
+
     }
-    
+
     mutating func stop() {
         switch pingStatus {
         case .ready, .running:

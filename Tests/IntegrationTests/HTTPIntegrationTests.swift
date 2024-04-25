@@ -16,7 +16,7 @@ import NIOCore
 
 #if INTEGRATION_TEST && (os(macOS) || os(iOS) || os(watchOS) || os(tvOS) || swift(>=5.7))
 final class HTTPIntegrationTests: XCTestCase {
-   
+
     private func runTest(
         networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected,
         pingConfig: LCLPing.PingConfiguration = .init(type: .http(LCLPing.PingConfiguration.HTTPOptions()), endpoint: .ipv4("http://127.0.0.1", 8080))
@@ -66,7 +66,7 @@ final class HTTPIntegrationTests: XCTestCase {
         let expectedError = PingError.httpMissingHost
         do {
             let pingConfig = LCLPing.PingConfiguration(type: .http(.init()), endpoint: .ipv4("ww.invalid-url.^&*", 8080))
-            let _ = try await runTest(pingConfig: pingConfig)
+            _ = try await runTest(pingConfig: pingConfig)
             XCTFail("Expect throwing PingError.invalidIPv4URL")
         } catch {
             XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
@@ -77,7 +77,7 @@ final class HTTPIntegrationTests: XCTestCase {
         let expectedError = PingError.httpMissingHost
         do {
             let pingConfig: LCLPing.PingConfiguration = .init(type: .http(LCLPing.PingConfiguration.HTTPOptions()), endpoint: .ipv4("127.0.0.1", 8080))
-            let _ = try await runTest(pingConfig: pingConfig)
+            _ = try await runTest(pingConfig: pingConfig)
             XCTFail("Expect throwing PingError.httpMissingHost")
         } catch {
             XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
@@ -88,7 +88,7 @@ final class HTTPIntegrationTests: XCTestCase {
         let expectedError = PingError.httpMissingSchema
         do {
             let pingConfig = LCLPing.PingConfiguration(type: .http(LCLPing.PingConfiguration.HTTPOptions()), endpoint: .ipv4("someOtherSchema://127.0.0.1", 8080))
-            let _ = try await runTest(pingConfig: pingConfig)
+            _ = try await runTest(pingConfig: pingConfig)
             XCTFail("Expect throwing PingError.httpMissingSchema")
         } catch {
             XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
@@ -99,7 +99,7 @@ final class HTTPIntegrationTests: XCTestCase {
         let expectedError = PingError.sendPingFailed(IOError(errnoCode: 61, reason: "connection reset (error set)"))
         let pingConfig = LCLPing.PingConfiguration(type: .http(LCLPing.PingConfiguration.HTTPOptions()), endpoint: .ipv4("http://127.0.0.1", 9090))
         do {
-            let _ = try await runTest(pingConfig: pingConfig)
+            _ = try await runTest(pingConfig: pingConfig)
             XCTFail("Expect throwing ")
         } catch {
             print("error: \(error)")
@@ -107,7 +107,7 @@ final class HTTPIntegrationTests: XCTestCase {
         }
     }
 
-    func testMinorInOutPacketDrop() async throws  {
+    func testMinorInOutPacketDrop() async throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.1, outPacketLoss: 0.1)
         let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
         switch pingStatus {

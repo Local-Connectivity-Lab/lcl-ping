@@ -14,37 +14,36 @@ import XCTest
 @testable import LCLPing
 
 class TimerTests: XCTestCase {
-    
+
     func testSchedulerSetup() {
         let scheduler = TimerScheduler<Int>()
         XCTAssertFalse(scheduler.containsKey(1))
         XCTAssertFalse(scheduler.containsKey(2))
         XCTAssertFalse(scheduler.containsKey(3))
     }
-    
+
     func testSchedulerWithOneTimer() {
         var scheduler = TimerScheduler<Int>()
-        
+
         let exp = XCTestExpectation(description: "Timer fired")
         scheduler.schedule(delay: 1.0, key: 1) {
             exp.fulfill()
         }
-        
+
         XCTAssertTrue(scheduler.containsKey(1))
         wait(for: [exp], timeout: 1.5)
     }
-    
+
     func testSchedulerWithTwoTimers() {
         var scheduler = TimerScheduler<Int>()
-        
+
         let exp1 = XCTestExpectation(description: "Timer 1 fired")
         scheduler.schedule(delay: 1.0, key: 1) {
             exp1.fulfill()
         }
         XCTAssertTrue(scheduler.containsKey(1))
         wait(for: [exp1], timeout: 1.5)
-        
-        
+
         let exp2 = XCTestExpectation(description: "Timer 2 fired")
         scheduler.schedule(delay: 2.0, key: 2) {
             exp2.fulfill()
@@ -52,7 +51,7 @@ class TimerTests: XCTestCase {
         XCTAssertTrue(scheduler.containsKey(2))
         wait(for: [exp2], timeout: 2.5)
     }
-    
+
     func testSchedulerWithMultipleTimers() {
         var scheduler = TimerScheduler<Int>()
         var totalWaitime: TimeInterval = 0
@@ -65,24 +64,24 @@ class TimerTests: XCTestCase {
                 exp.fulfill()
             }
         }
-        
+
         wait(for: expQueue, timeout: totalWaitime + 0.5)
     }
-    
+
     func testSchedulerWithDuplicateScheduling() {
         var scheduler = TimerScheduler<Int>()
         let expFired = XCTestExpectation(description: "Timer fired")
         scheduler.schedule(delay: 3.0, key: 1) {
             expFired.fulfill()
         }
-        
+
         scheduler.schedule(delay: 1.0, key: 1) {
             XCTFail("This timer is a duplicate and should not be fired")
         }
-        
+
         wait(for: [expFired], timeout: 3.5)
     }
-    
+
     func testSchedulerWithScheduleAndRemove() {
         var scheduler = TimerScheduler<Int>()
 
@@ -98,7 +97,7 @@ class TimerTests: XCTestCase {
         }
         wait(for: [exp], timeout: 3.0)
     }
-    
+
     func testSchedulerWithSequentialMultipleScheduleAndRemove() {
         var scheduler = TimerScheduler<Int>()
         for i in 1...20 {
@@ -106,19 +105,19 @@ class TimerTests: XCTestCase {
             scheduler.schedule(delay: Double(i) * 2, key: i) {
                 XCTFail("Timer should not get fird")
             }
-            
+
             XCTAssertTrue(scheduler.containsKey(i))
-            
+
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                 scheduler.remove(key: i)
                 XCTAssertFalse(scheduler.containsKey(i))
                 exp.fulfill()
             }
-            
+
             wait(for: [exp], timeout: 2)
         }
     }
-    
+
     func testSchedulerWithSchduleAndRandomRemove() {
         var scheduler = TimerScheduler<Int>()
         var keptQueue: [XCTestExpectation] = []
@@ -159,7 +158,7 @@ class TimerTests: XCTestCase {
             XCTAssertTrue(scheduler.containsKey(keep))
         }
     }
-    
+
     func testSchedulerWithRemoveAfterFire() {
         var scheduler = TimerScheduler<Int>()
         var expQueue: [XCTestExpectation] = []
@@ -170,7 +169,7 @@ class TimerTests: XCTestCase {
                 exp.fulfill()
             }
         }
-        
+
         wait(for: expQueue, timeout: 3)
         for i in 1...20 {
             scheduler.remove(key: i)
@@ -179,13 +178,13 @@ class TimerTests: XCTestCase {
             XCTAssertFalse(scheduler.containsKey(i))
         }
     }
-    
+
     func testSchedulerWithRemoveNonExistentKey() {
         var scheduler = TimerScheduler<Int>()
         scheduler.remove(key: 1)
         XCTAssertFalse(scheduler.containsKey(1))
     }
-    
+
     func testSchedulerReset() {
         var scheduler = TimerScheduler<Int>()
         var expQueue: [XCTestExpectation] = []
@@ -196,18 +195,17 @@ class TimerTests: XCTestCase {
                 XCTFail("Timer \(i) should've been cancelled")
             }
         }
-        
+
         scheduler.reset()
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
             expQueue.forEach { exp in
                 exp.fulfill()
             }
         }
-        
+
         wait(for: expQueue, timeout: 5.0)
         for i in 1...10 {
             XCTAssertFalse(scheduler.containsKey(i))
         }
     }
 }
-

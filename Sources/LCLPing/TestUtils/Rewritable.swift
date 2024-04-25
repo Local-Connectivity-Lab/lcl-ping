@@ -14,48 +14,48 @@ import Foundation
 import NIOCore
 
 protocol Rewritable {
-    func rewrite(newValues: [PartialKeyPath<Self> : AnyObject]) -> Self
+    func rewrite(newValues: [PartialKeyPath<Self>: AnyObject]) -> Self
 }
 
 extension ICMPRequestPayload: Rewritable {
-    func rewrite(newValues: [PartialKeyPath<ICMPRequestPayload> : AnyObject]) -> ICMPRequestPayload {
+    func rewrite(newValues: [PartialKeyPath<ICMPRequestPayload>: AnyObject]) -> ICMPRequestPayload {
         return ICMPRequestPayload(timestamp: newValues[\.timestamp] as? TimeInterval ?? self.timestamp, identifier: newValues[\.identifier] as? UInt16 ?? self.identifier)
     }
 }
 
 extension IPv4Header: Rewritable {
-    func rewrite(newValues: [PartialKeyPath<IPv4Header> : AnyObject]) -> IPv4Header {
+    func rewrite(newValues: [PartialKeyPath<IPv4Header>: AnyObject]) -> IPv4Header {
         return IPv4Header(
-            versionAndHeaderLength: newValues[\.versionAndHeaderLength] as? UInt8 ?? self.versionAndHeaderLength, 
-            differentiatedServicesAndECN: newValues[\.differentiatedServicesAndECN] as? UInt8 ?? self.differentiatedServicesAndECN, 
-            totalLength: newValues[\.totalLength] as? UInt16 ?? self.totalLength, 
+            versionAndHeaderLength: newValues[\.versionAndHeaderLength] as? UInt8 ?? self.versionAndHeaderLength,
+            differentiatedServicesAndECN: newValues[\.differentiatedServicesAndECN] as? UInt8 ?? self.differentiatedServicesAndECN,
+            totalLength: newValues[\.totalLength] as? UInt16 ?? self.totalLength,
             identification: newValues[\.identification] as? UInt16 ?? self.identification,
-            flagsAndFragmentOffset: newValues[\.flagsAndFragmentOffset] as? UInt16 ?? self.flagsAndFragmentOffset, 
-            timeToLive: newValues[\.timeToLive] as? UInt8 ?? self.timeToLive, 
-            protocol: newValues[\.protocol] as? UInt8 ?? self.protocol, 
-            headerChecksum: newValues[\.headerChecksum] as? UInt16 ?? self.headerChecksum, 
-            sourceAddress: newValues[\.sourceAddress] as? (UInt8, UInt8, UInt8, UInt8) ?? self.sourceAddress, 
+            flagsAndFragmentOffset: newValues[\.flagsAndFragmentOffset] as? UInt16 ?? self.flagsAndFragmentOffset,
+            timeToLive: newValues[\.timeToLive] as? UInt8 ?? self.timeToLive,
+            protocol: newValues[\.protocol] as? UInt8 ?? self.protocol,
+            headerChecksum: newValues[\.headerChecksum] as? UInt16 ?? self.headerChecksum,
+            sourceAddress: newValues[\.sourceAddress] as? (UInt8, UInt8, UInt8, UInt8) ?? self.sourceAddress,
             destinationAddress: newValues[\.destinationAddress] as? (UInt8, UInt8, UInt8, UInt8) ?? self.destinationAddress
         )
     }
 }
 
 extension ICMPHeader: Rewritable {
-    func rewrite(newValues: [PartialKeyPath<ICMPHeader> : AnyObject]) -> ICMPHeader {
+    func rewrite(newValues: [PartialKeyPath<ICMPHeader>: AnyObject]) -> ICMPHeader {
         var newHeader = ICMPHeader(
-            type: newValues[\.type] as? UInt8 ?? self.type, 
-            code: newValues[\.code] as? UInt8 ?? self.code, 
-            idenifier: newValues[\.idenifier] as? UInt16 ?? self.idenifier, 
+            type: newValues[\.type] as? UInt8 ?? self.type,
+            code: newValues[\.code] as? UInt8 ?? self.code,
+            idenifier: newValues[\.idenifier] as? UInt16 ?? self.idenifier,
             sequenceNum: newValues[\.sequenceNum] as? UInt16 ?? self.sequenceNum
         )
 
-        newHeader.payload = self.payload.rewrite(newValues: newValues[\.payload] as! [PartialKeyPath<ICMPRequestPayload> : AnyObject])
+        newHeader.payload = self.payload.rewrite(newValues: newValues[\.payload] as! [PartialKeyPath<ICMPRequestPayload>: AnyObject])
         return newHeader
     }
 }
 
 extension AddressedEnvelope: Rewritable where DataType == ByteBuffer {
-    func rewrite(newValues: [PartialKeyPath<NIOCore.AddressedEnvelope<DataType>> : AnyObject]) -> NIOCore.AddressedEnvelope<DataType> {
+    func rewrite(newValues: [PartialKeyPath<NIOCore.AddressedEnvelope<DataType>>: AnyObject]) -> NIOCore.AddressedEnvelope<DataType> {
         return AddressedEnvelope(
             remoteAddress: newValues[\.remoteAddress] as? SocketAddress ?? self.remoteAddress,
             data: data.rewrite(newValues: newValues[\AddressedEnvelope.data] as? [RewriteData] ?? [])
@@ -63,12 +63,11 @@ extension AddressedEnvelope: Rewritable where DataType == ByteBuffer {
     }
 }
 
-
 extension ByteBuffer {
     func rewrite(newValues: ByteBuffer) -> NIOCore.ByteBuffer {
         return ByteBuffer(buffer: newValues)
     }
-    
+
     func rewrite(newValues: [RewriteData]) -> ByteBuffer {
         logger.debug("[ByteBuffer Rewrite]: received new value: \(newValues)")
         var newBuffer = ByteBuffer(buffer: self)

@@ -63,7 +63,7 @@ final class ICMPDuplexerTests: XCTestCase {
         let remoteAddr = outboundOutData!.remoteAddress
         let sent = try decodeByteBuffer(of: ICMPHeader.self, data: &data)
         XCTAssertEqual(remoteAddr, try! SocketAddress(ipAddress: "127.0.0.1", port: 0))
-        XCTAssertEqual(sent.type, ICMPType.EchoRequest.rawValue)
+        XCTAssertEqual(sent.type, ICMPType.echoRequest.rawValue)
         XCTAssertEqual(sent.code, 0)
         XCTAssertEqual(sent.idenifier, 1)
         XCTAssertEqual(sent.sequenceNum, 2)
@@ -76,7 +76,7 @@ final class ICMPDuplexerTests: XCTestCase {
         channel.pipeline.fireChannelActive()
         
         let outboundInData: ICMPOutboundIn = (0xbeef, 2)
-        var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.EchoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
+        var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
         inboundInData.setChecksum()
         try channel.writeOutbound(outboundInData)
         try channel.writeInbound(inboundInData)
@@ -153,7 +153,7 @@ final class ICMPDuplexerTests: XCTestCase {
     func testICMPResponseWithNoMatchingRequest() throws {
         XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: self.icmpConfiguration, resolvedAddress: resolvedAddress!)).wait())
         channel.pipeline.fireChannelActive()
-        var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.EchoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
+        var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
         inboundInData.setChecksum()
         try channel.writeInbound(inboundInData)
         self.loop.run()
@@ -171,7 +171,7 @@ final class ICMPDuplexerTests: XCTestCase {
     func testInvalidICMPChecksum() throws {
         XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: self.icmpConfiguration, resolvedAddress: resolvedAddress!)).wait())
         channel.pipeline.fireChannelActive()
-        let inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.EchoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
+        let inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
         let outboundInData: ICMPOutboundIn = (0xbeef, 2)
         try channel.writeOutbound(outboundInData)
         try channel.writeInbound(inboundInData)
@@ -192,7 +192,7 @@ final class ICMPDuplexerTests: XCTestCase {
         #if canImport(Darwin)
         XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: self.icmpConfiguration, resolvedAddress: resolvedAddress!)).wait())
         channel.pipeline.fireChannelActive()
-        var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.EchoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
+        var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
         inboundInData.setChecksum()
         let outboundInData: ICMPOutboundIn = (0xdead, 2)
         try channel.writeOutbound(outboundInData)
@@ -213,7 +213,7 @@ final class ICMPDuplexerTests: XCTestCase {
     func testICMPResponseTimeout() throws {
         XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: self.icmpConfiguration, resolvedAddress: resolvedAddress!)).wait())
         channel.pipeline.fireChannelActive()
-        var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.EchoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
+        var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
         inboundInData.setChecksum()
         let outboundInData: ICMPOutboundIn = (0xbeef, 2)
         try channel.writeOutbound(outboundInData)
@@ -241,7 +241,7 @@ final class ICMPDuplexerTests: XCTestCase {
     func testICMPResponseDuplicate() throws {
         XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: self.icmpConfiguration, resolvedAddress: resolvedAddress!)).wait())
         channel.pipeline.fireChannelActive()
-        var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.EchoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
+        var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
         inboundInData.setChecksum()
         let outboundInData: ICMPOutboundIn = (0xbeef, 2)
         try channel.writeOutbound(outboundInData)
@@ -286,7 +286,7 @@ final class ICMPDuplexerTests: XCTestCase {
             try channel.writeOutbound(outboundInData)
         }
         for i in 0..<2 {
-            var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.EchoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: UInt16(i))
+            var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: UInt16(i))
             inboundInData.setChecksum()
             try channel.writeInbound(inboundInData)
         }

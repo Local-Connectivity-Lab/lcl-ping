@@ -22,7 +22,7 @@ class InboundHeaderRewriter<In: Rewritable>: ChannelInboundHandler {
         case operational
         case error
         case inactive
-        
+
         var isOperational: Bool {
             switch self {
             case .operational:
@@ -34,9 +34,9 @@ class InboundHeaderRewriter<In: Rewritable>: ChannelInboundHandler {
     }
 
     private var state: State
-    private var rewriteHeaders: [PartialKeyPath<In>:AnyObject]?
+    private var rewriteHeaders: [PartialKeyPath<In>: AnyObject]?
 
-    init(rewriteHeaders: [PartialKeyPath<In>:AnyObject]?) {
+    init(rewriteHeaders: [PartialKeyPath<In>: AnyObject]?) {
         self.rewriteHeaders = rewriteHeaders
         self.state = .inactive
     }
@@ -54,7 +54,7 @@ class InboundHeaderRewriter<In: Rewritable>: ChannelInboundHandler {
             self.state = .operational
         }
     }
-    
+
     func channelInactive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:

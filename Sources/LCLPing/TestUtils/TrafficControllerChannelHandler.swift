@@ -26,7 +26,6 @@ class TrafficControllerChannelHandler: ChannelDuplexHandler {
             return min(max(from, val), to)
         }
 
-
         private(set) var inPacketLoss: Double {
             didSet {
                 inPacketLoss = NetworkLinkConfiguration.ensureInRange(from: 0.0, to: 1.0, val: inPacketLoss)
@@ -47,7 +46,7 @@ class TrafficControllerChannelHandler: ChannelDuplexHandler {
                 inDelay = NetworkLinkConfiguration.ensureInRange(from: 0, to: .max, val: inDelay)
             }
         }
-        
+
         private(set) var inDuplicate: Double {
             didSet {
                 inDuplicate = NetworkLinkConfiguration.ensureInRange(from: 0.0, to: 1.0, val: inDuplicate)
@@ -63,7 +62,6 @@ class TrafficControllerChannelHandler: ChannelDuplexHandler {
         }
     }
 
-
     typealias InboundIn = ByteBuffer
     typealias InboundOut = ByteBuffer
     typealias OutboundIn = ByteBuffer
@@ -73,7 +71,7 @@ class TrafficControllerChannelHandler: ChannelDuplexHandler {
         case operational
         case error
         case inactive
-        
+
         var isOperational: Bool {
             switch self {
             case .operational:
@@ -91,12 +89,12 @@ class TrafficControllerChannelHandler: ChannelDuplexHandler {
         self.state = .inactive
         self.networkLinkConfig = networkLinkConfig
     }
-    
+
     private func shouldDropPacket(for possibility: Double) -> Bool {
         let num = Double.random(in: 0.0..<1.0)
         return num < possibility
     }
-    
+
     private func shouldDuplicatePacket(for possibility: Double) -> Bool {
         let num = Double.random(in: 0.0..<1.0)
         return num < possibility
@@ -115,7 +113,7 @@ class TrafficControllerChannelHandler: ChannelDuplexHandler {
             self.state = .operational
         }
     }
-    
+
     func channelInactive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
@@ -135,15 +133,15 @@ class TrafficControllerChannelHandler: ChannelDuplexHandler {
             logger.debug("[\(#function)]: drop data: \(data) because channel is not in operational state")
             return
         }
-        
+
         // check if packet should be dropped
         if shouldDropPacket(for: self.networkLinkConfig.inPacketLoss) {
             logger.debug("[\(#function)]: drop data \(data)")
             return
         }
-        
+
         let shouldDuplicatePacket = shouldDuplicatePacket(for: self.networkLinkConfig.inDuplicate)
-        
+
         logger.debug("[\(#function)]: schedule to read data in \(self.networkLinkConfig.inDelay) ms. Should duplicate: \(shouldDuplicatePacket)")
         context.eventLoop.scheduleTask(in: .milliseconds(self.networkLinkConfig.inDelay)) {
             context.fireChannelRead(data)
@@ -166,7 +164,7 @@ class TrafficControllerChannelHandler: ChannelDuplexHandler {
             logger.debug("[\(#function)]: drop data \(data)")
             return
         }
-        
+
         logger.debug("[\(#function)]: schedule to send data in \(self.networkLinkConfig.outDelay) ms")
         context.eventLoop.scheduleTask(in: .milliseconds(self.networkLinkConfig.outDelay)) {
             _ = context.writeAndFlush(data)

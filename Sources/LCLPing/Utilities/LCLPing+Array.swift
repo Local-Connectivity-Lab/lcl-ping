@@ -12,7 +12,6 @@
 
 import Foundation
 
-
 extension Array where Element == PingResult {
 
     /// Average of the given array of `PingResult`
@@ -24,16 +23,16 @@ extension Array where Element == PingResult {
         let sum = reduce(0.0) { partialResult, pingResult in
             partialResult + pingResult.latency
         }
-        
+
         return sum / Double(count)
     }
-    
+
     /// Median of the given array of `PingResult`
     var median: Double {
         if isEmpty {
             return 0
         }
-        
+
         let sorted = sorted { $0.latency < $1.latency }
         if count % 2 == 1 {
             // odd
@@ -42,17 +41,16 @@ extension Array where Element == PingResult {
             // even - lower end will be returned
             return sorted[count / 2 - 1].latency
         }
-        
+
     }
-    
+
     /// Standard Deviation of the given array of `PingResult`
     var stdDev: Double {
         if isEmpty || count == 1 {
             return 0.0
         }
-        
+
         return sqrt(map { ($0.latency - avg) * ($0.latency - avg) }.reduce(0.0, +) / Double(count - 1))
     }
-    
-    
+
 }
