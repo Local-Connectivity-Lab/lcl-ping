@@ -1,6 +1,6 @@
-<p align:center>
-    <img src="images/logo.png" alt="Logo" width="557>
-</p>
+<div align:center>
+    <img src="images/logo.png" alt="Logo" width="350>
+</div>
 
 
 # LCLPing
