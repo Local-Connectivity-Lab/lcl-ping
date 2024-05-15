@@ -55,7 +55,10 @@ debug_integration_test:
 	make setup_server
 	swift test -Xswiftc -DINTEGRATION_TEST -Xswiftc -DDEBUG --filter IntegrationTests
 	make teardown_server
-	
+
+.PHONY: demo
+demo:
+	swift run Demo
 
 .PHONY: clean
 clean:

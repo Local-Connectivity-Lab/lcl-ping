@@ -12,7 +12,7 @@ let package = Package(
         // Products define the executables and libraries a package produces, and make them visible to other packages.
         .library(
             name: "LCLPing",
-            targets: ["LCLPing"]),
+            targets: ["LCLPing"])
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
@@ -36,6 +36,11 @@ let package = Package(
                 .product(name: "NIOSSL", package: "swift-nio-ssl"),
                 .product(name: "Collections", package: "swift-collections")
             ]),
+        .executableTarget(
+            name: "Demo",
+            dependencies: ["LCLPing"],
+            exclude: ["README.md"]
+        ),
         .testTarget(
             name: "UtilitiesTests",
             dependencies: ["LCLPing"]
