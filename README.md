@@ -1,6 +1,8 @@
-<p align="center">
-    <img src="images/logo.png" alt="Logo" width="350>
-</p>
+<div align="center">
+<img src="images/logo.png" alt="Logo" width="250px" />
+</div>
+
+---
 
 LCLPing is a cross-platform Ping library written in Swift, and for Swift. It is designed to help streamline testing, measuring, and monitoring network reachability of a host for both the client side and server side applications and services. 
 
