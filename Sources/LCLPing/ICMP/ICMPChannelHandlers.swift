@@ -14,7 +14,6 @@ import Foundation
 import NIO
 import NIOCore
 
-// TODO: support version without swift concurrency
 internal final class ICMPDuplexer: ChannelDuplexHandler {
     typealias InboundIn = ICMPHeader
     typealias InboundOut = PingResponse
@@ -47,24 +46,25 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
     /// sequence number to an optional ICMP response
     private var seqToResponse: [UInt16: ICMPHeader?]
     private var responseSeqNumSet: Set<UInt16>
+    private var handler: ICMPHandler
+    private var timer: [UInt16: Scheduled<Void>]
 
-    private var timerScheduler: TimerScheduler<UInt16>
-
-    init(configuration: LCLPing.PingConfiguration, resolvedAddress: SocketAddress) {
+    init(configuration: LCLPing.PingConfiguration, resolvedAddress: SocketAddress, handler: ICMPHandler) {
         self.configuration = configuration
         self.seqToRequest = [:]
         self.seqToResponse = [:]
         self.responseSeqNumSet = Set()
-        self.timerScheduler = TimerScheduler()
         self.state = .inactive
         self.resolvedAddress = resolvedAddress
+        self.timer = [:]
+        self.handler = handler
     }
 
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
         let (identifier, sequenceNum) = self.unwrapOutboundIn(data)
         guard self.state.isOperational else {
             logger.error("[ICMPDuplexer][\(#function)]: Error: IO on closed channel")
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, ChannelError.ioOnClosedChannel)))
+            self.handler.handleError(sequenceNum: sequenceNum, error: ChannelError.ioOnClosedChannel)
             return
         }
 
@@ -75,26 +75,15 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         let evelope = AddressedEnvelope(remoteAddress: resolvedAddress, data: buffer)
 
         context.writeAndFlush(self.wrapOutboundOut(evelope), promise: promise)
-        self.seqToRequest[sequenceNum] = icmpRequest
-
-        self.timerScheduler.schedule(delay: self.configuration.timeout, key: sequenceNum) { [weak self, context] in
-            if let self = self, !self.seqToResponse.keys.contains(sequenceNum) {
-                logger.debug("[ICMPDuplexer][\(#function)]: packet #\(sequenceNum) timed out")
-                self.responseSeqNumSet.insert(sequenceNum)
-                context.eventLoop.execute {
-                    context.fireChannelRead(self.wrapInboundOut(.timeout(sequenceNum)))
-                    self.closeWhenComplete(context: context)
-                }
-            }
+        self.handler.handleWrite(request: icmpRequest)
+        
+        let scheduledTimer = context.eventLoop.scheduleTask(deadline: .now() + .seconds(1)) {
+            self.timer.removeValue(forKey: sequenceNum)
+            self.handler.handleTimeout(sequenceNum: sequenceNum)
         }
+
+        timer[sequenceNum] = scheduledTimer
         logger.debug("[ICMPDuplexer][\(#function)]: schedule timer for # \(sequenceNum) for \(self.configuration.timeout) second")
-    }
-
-    private func closeWhenComplete(context: ChannelHandlerContext) {
-        if self.seqToRequest.count == self.configuration.count && self.responseSeqNumSet.count == self.configuration.count {
-            logger.debug("[ICMPDuplexer]: Ping finished. Closing all channels")
-            context.close(mode: .all, promise: nil)
-        }
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
@@ -104,177 +93,16 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         }
 
         let icmpResponse = self.unwrapInboundIn(data)
-
-        let type = icmpResponse.type
-        let code = icmpResponse.code
         let sequenceNum = icmpResponse.sequenceNum
-        let identifier = icmpResponse.idenifier
-        logger.debug("[ICMPDuplexer][\(#function)]: received icmp response with type: \(type), code: \(code), sequence number: \(sequenceNum), identifier: \(identifier)")
-
-        if self.responseSeqNumSet.contains(sequenceNum) {
-            let pingResponse: PingResponse = self.seqToResponse[sequenceNum] == nil ? .timeout(sequenceNum) : .duplicated(sequenceNum)
-            logger.debug("[ICMPDuplexer][\(#function)]: response for #\(sequenceNum) is \(self.seqToResponse[sequenceNum] == nil ? "timeout" : "duplicate")")
-            context.fireChannelRead(self.wrapInboundOut(pingResponse))
-            closeWhenComplete(context: context)
-            return
-        }
-
-        guard let icmpRequest = self.seqToRequest[sequenceNum] else {
-            logger.error("[ICMPDuplexer][\(#function)]: Unable to find matching request with sequence number \(sequenceNum)")
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.invalidICMPResponse)))
-            closeWhenComplete(context: context)
-            return
-        }
-
-        self.timerScheduler.remove(key: sequenceNum)
-        self.seqToResponse[sequenceNum] = icmpResponse
-        self.responseSeqNumSet.insert(sequenceNum)
-
-        switch (type, code) {
-        case (ICMPType.echoReply.rawValue, 0):
-            break
-        case (3, 0):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpDestinationNetworkUnreachable)))
-            self.closeWhenComplete(context: context)
-            return
-        case (3, 1):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpDestinationHostUnreachable)))
-            self.closeWhenComplete(context: context)
-            return
-        case (3, 2):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpDestinationProtocoltUnreachable)))
-            self.closeWhenComplete(context: context)
-            return
-        case (3, 3):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpDestinationPortUnreachable)))
-            self.closeWhenComplete(context: context)
-            return
-        case (3, 4):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpFragmentationRequired)))
-            self.closeWhenComplete(context: context)
-            return
-        case (3, 5):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpSourceRouteFailed)))
-            self.closeWhenComplete(context: context)
-            return
-        case (3, 6):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpUnknownDestinationNetwork)))
-            self.closeWhenComplete(context: context)
-            return
-        case (3, 7):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpUnknownDestinationHost)))
-            self.closeWhenComplete(context: context)
-            return
-        case (3, 8):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpSourceHostIsolated)))
-            self.closeWhenComplete(context: context)
-            return
-        case (3, 9):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpNetworkAdministrativelyProhibited)))
-            self.closeWhenComplete(context: context)
-            return
-        case (3, 10):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpHostAdministrativelyProhibited)))
-            self.closeWhenComplete(context: context)
-            return
-        case (3, 11):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpNetworkUnreachableForToS)))
-            self.closeWhenComplete(context: context)
-            return
-        case (3, 12):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpHostUnreachableForToS)))
-            self.closeWhenComplete(context: context)
-            return
-        case (3, 13):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpCommunicationAdministrativelyProhibited)))
-            self.closeWhenComplete(context: context)
-            return
-        case (3, 14):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpHostPrecedenceViolation)))
-            self.closeWhenComplete(context: context)
-            return
-        case (3, 15):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpPrecedenceCutoffInEffect)))
-            self.closeWhenComplete(context: context)
-            return
-        case (5, 0):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpRedirectDatagramForNetwork)))
-            self.closeWhenComplete(context: context)
-            return
-        case (5, 1):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpRedirectDatagramForHost)))
-            self.closeWhenComplete(context: context)
-            return
-        case (5, 2):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpRedirectDatagramForTosAndNetwork)))
-            self.closeWhenComplete(context: context)
-            return
-        case (5, 3):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpRedirectDatagramForTosAndHost)))
-            self.closeWhenComplete(context: context)
-            return
-        case (9, 0):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpRouterAdvertisement)))
-            self.closeWhenComplete(context: context)
-            return
-        case (10, 0):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpRouterDiscoverySelectionSolicitation)))
-            self.closeWhenComplete(context: context)
-            return
-        case (11, 0):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpTTLExpiredInTransit)))
-            self.closeWhenComplete(context: context)
-            return
-        case (11, 1):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpFragmentReassemblyTimeExceeded)))
-            self.closeWhenComplete(context: context)
-            return
-        case (12, 0):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpPointerIndicatesError)))
-            self.closeWhenComplete(context: context)
-            return
-        case (12, 1):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpMissingARequiredOption)))
-            self.closeWhenComplete(context: context)
-            return
-        case (12, 2):
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.icmpBadLength)))
-            self.closeWhenComplete(context: context)
-            return
-        default:
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.unknownError("Received unknown ICMP type (\(type)) and ICMP code (\(code))"))))
-            self.closeWhenComplete(context: context)
-            return
-        }
-
-        if icmpResponse.checkSum != icmpResponse.calcChecksum() {
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.invalidICMPChecksum)))
-            closeWhenComplete(context: context)
-            return
-        }
-
-        #if canImport(Darwin)
-        if identifier != icmpRequest.idenifier {
-            context.fireChannelRead(self.wrapInboundOut(.error(sequenceNum, PingError.invalidICMPIdentifier)))
-            closeWhenComplete(context: context)
-            return
-        }
-        #endif
-
-        let currentTimestamp = Date.currentTimestamp
-        let latency = (currentTimestamp - icmpRequest.payload.timestamp) * 1000
-
-        let pingResponse: PingResponse = .ok(sequenceNum, latency, currentTimestamp)
-        context.fireChannelRead(self.wrapInboundOut(pingResponse))
-
-        closeWhenComplete(context: context)
+        self.timer[sequenceNum]?.cancel()
+        self.timer.removeValue(forKey: sequenceNum)
+        self.handler.handleRead(response: icmpResponse)
     }
 
     func channelActive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
             logger.debug("[ICMPDuplexer][\(#function)]: Channel already active")
-            break
         case .error:
             logger.error("[ICMPDuplexer][\(#function)]: in an incorrect state: \(state)")
             assertionFailure("[\(#function)]: in an incorrect state: \(state)")
@@ -290,9 +118,11 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         case .operational:
             context.fireChannelInactive()
             self.state = .inactive
-            self.seqToRequest.removeAll()
-            self.seqToResponse.removeAll()
-            self.timerScheduler.reset()
+            self.handler.reset()
+            self.timer.forEach { (_, timer) in
+                timer.cancel()
+            }
+            self.timer.removeAll()
             logger.debug("[ICMPDuplexer][\(#function)]: Channel inactive")
         case .error:
             break
@@ -308,8 +138,7 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
             return
         }
         self.state = .error
-        let pingResponse: PingResponse = .error(nil, error)
-        context.fireChannelRead(self.wrapInboundOut(pingResponse))
+        self.handler.handleError(error: error)
         context.close(mode: .all, promise: nil)
     }
 
@@ -340,7 +169,6 @@ internal final class IPDecoder: ChannelInboundHandler {
         switch self.state {
         case .operational:
             logger.debug("[IPDecoder][\(#function)]: Channel already active")
-            break
         case .error:
             logger.error("[IPDecoder][\(#function)] in an incorrect state: \(state)")
             assertionFailure("[IPDecoder][\(#function)] in an incorrect state: \(state)")
@@ -435,7 +263,6 @@ internal final class ICMPDecoder: ChannelInboundHandler {
         switch self.state {
         case .operational:
             logger.debug("[ICMPDecoder][\(#function)]: Channel already active")
-            break
         case .error:
             logger.error("[ICMPDecoder][\(#function)] in an incorrect state: \(state)")
             assertionFailure("[\(#function)] in an incorrect state: \(state)")

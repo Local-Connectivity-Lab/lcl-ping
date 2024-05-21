@@ -94,7 +94,7 @@ internal struct ICMPPing: Pingable {
                        let handlers: [ChannelHandler] = [
                         IPDecoder(),
                         ICMPDecoder(),
-                        ICMPDuplexer(configuration: pingConfiguration, resolvedAddress: resolvedAddress)
+//                        ICMPDuplexer(configuration: pingConfiguration, resolvedAddress: resolvedAddress)
                        ]
 #endif // !INTEGRATION_TEST
 

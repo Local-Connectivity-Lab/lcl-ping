@@ -17,23 +17,35 @@ import LCLPing
 // create ping configuration for each run
 let pingConfig = LCLPing.PingConfiguration(type: .icmp, endpoint: .ipv4("google.com", 0))
 
-// create ping options
-#if os(macOS) || os(iOS)
-let options = LCLPing.Options(verbose: false, useNative: false)
-#else
-let options = LCLPing.Options(verbose: false)
-#endif
-
-// initialize ping object with the options
-var ping = LCLPing(options: options)
-
-try await ping.start(pingConfiguration: pingConfig)
-switch ping.status {
-case .error, .ready, .running:
-    print("LCLPing is in invalid state. Abort")
-case .stopped, .finished:
-    print(ping.summary)
+let client = ICMPPingClient(configuration: pingConfig)
+DispatchQueue.global().asyncAfter(deadline: .now() + 3) {
+    print("Cancelled after 3s")
+    client.cancel()
 }
+do {
+    let res = try client.start().wait()
+    print(res)
+} catch {
+    print("received: \(error)")
+}
+
+//// create ping options
+//#if os(macOS) || os(iOS)
+//let options = LCLPing.Options(verbose: false, useNative: false)
+//#else
+//let options = LCLPing.Options(verbose: false)
+//#endif
+//
+//// initialize ping object with the options
+//var ping = LCLPing(options: options)
+//
+//try await ping.start(pingConfiguration: pingConfig)
+//switch ping.status {
+//case .error, .ready, .running:
+//    print("LCLPing is in invalid state. Abort")
+//case .stopped, .finished:
+//    print(ping.summary)
+//}
 #else
 fatalError("Requires at least Swift 5.9")
 #endif
