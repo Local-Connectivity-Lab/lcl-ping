@@ -1,9 +1,9 @@
 SERVER_PORT=8080
-RUN_FLASK=flask --app Mock/app.py run
+RUN_FLASK=flask --app Tests/Mock/app.py run
 
 .PHONY: server_environment
 server_environment:
-	python3 -m pip install -r Mock/requirements.txt
+	python3 -m pip install -r Tests/Mock/requirements.txt
 
 .PHONY: setup_server
 setup_server: server_environment
