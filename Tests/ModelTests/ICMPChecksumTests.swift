@@ -15,33 +15,33 @@ import XCTest
 
 final class ICMPChecksumTests: XCTestCase {
     func testExample() throws {
-        var header1 = ICMPHeader(idenifier: 123, sequenceNum: 456)
-        header1.payload = ICMPRequestPayload(timestamp: 987654321.0, identifier: header1.idenifier)
+        var header1 = ICMPPingClient.ICMPHeader(idenifier: 123, sequenceNum: 456)
+        header1.payload = ICMPPingClient.ICMPRequestPayload(timestamp: 987654321.0, identifier: header1.idenifier)
         header1.setChecksum()
         XCTAssertEqual(header1.toData().computeIPChecksum(), 0)
 
-        var header2 = ICMPHeader(idenifier: 789, sequenceNum: 321)
-        header2.payload = ICMPRequestPayload(timestamp: 123456789.0, identifier: header2.idenifier)
+        var header2 = ICMPPingClient.ICMPHeader(idenifier: 789, sequenceNum: 321)
+        header2.payload = ICMPPingClient.ICMPRequestPayload(timestamp: 123456789.0, identifier: header2.idenifier)
         header2.setChecksum()
         XCTAssertEqual(header2.toData().computeIPChecksum(), 0)
 
-        var header3 = ICMPHeader(idenifier: 1, sequenceNum: 2)
-        header3.payload = ICMPRequestPayload(timestamp: 987654321.0, identifier: header3.idenifier)
+        var header3 = ICMPPingClient.ICMPHeader(idenifier: 1, sequenceNum: 2)
+        header3.payload = ICMPPingClient.ICMPRequestPayload(timestamp: 987654321.0, identifier: header3.idenifier)
         header3.setChecksum()
         XCTAssertEqual(header3.toData().computeIPChecksum(), 0)
 
-        var header4 = ICMPHeader(idenifier: 5, sequenceNum: 777)
-        header4.payload = ICMPRequestPayload(timestamp: 123456789.0, identifier: header4.idenifier)
+        var header4 = ICMPPingClient.ICMPHeader(idenifier: 5, sequenceNum: 777)
+        header4.payload = ICMPPingClient.ICMPRequestPayload(timestamp: 123456789.0, identifier: header4.idenifier)
         header4.setChecksum()
         XCTAssertEqual(header4.toData().computeIPChecksum(), 0)
 
-        var header5 = ICMPHeader(idenifier: 999, sequenceNum: 88)
-        header5.payload = ICMPRequestPayload(timestamp: 987654321.0, identifier: header5.idenifier)
+        var header5 = ICMPPingClient.ICMPHeader(idenifier: 999, sequenceNum: 88)
+        header5.payload = ICMPPingClient.ICMPRequestPayload(timestamp: 987654321.0, identifier: header5.idenifier)
         header5.setChecksum()
         XCTAssertEqual(header5.toData().computeIPChecksum(), 0)
 
-        var header6 = ICMPHeader(idenifier: 777, sequenceNum: 666)
-        header6.payload = ICMPRequestPayload(timestamp: 123456789.0, identifier: header6.idenifier)
+        var header6 = ICMPPingClient.ICMPHeader(idenifier: 777, sequenceNum: 666)
+        header6.payload = ICMPPingClient.ICMPRequestPayload(timestamp: 123456789.0, identifier: header6.idenifier)
         header6.setChecksum()
         XCTAssertEqual(header6.toData().computeIPChecksum(), 0)
     }

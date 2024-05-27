@@ -23,8 +23,7 @@ public enum PingError: Error {
 
     case failedToInitialzeChannel
     case invalidICMPResponse
-    case invalidIPv4URL
-    case invalidIPv6URL
+    case invalidURL
     case invalidIPVersion
     case invalidIPProtocol
     case invalidICMPChecksum
@@ -71,6 +70,7 @@ public enum PingError: Error {
     case httpMissingSchema
     case httpUnableToEstablishTLSConnection
     case httpMissingResult
+    case httpInvalidResponseStatusCode(Int)
 
     case invalidHexFormat
 

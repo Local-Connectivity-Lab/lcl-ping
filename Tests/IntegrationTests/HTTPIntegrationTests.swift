@@ -249,10 +249,10 @@ final class HTTPIntegrationTests: XCTestCase {
             httpPing.stop()
             try await httpPing.start(with: pingConfig)
             switch httpPing.pingStatus {
-            case .stopped:
+            case .cancelled:
                 XCTAssertNil(httpPing.summary)
             default:
-                XCTFail("Invalid HTTP Ping state. Should be .stopped, but is \(httpPing.pingStatus)")
+                XCTFail("Invalid HTTP Ping state. Should be .cancelled, but is \(httpPing.pingStatus)")
             }
         default:
             XCTFail("Invalid PingConfig. Need HTTP, but received \(pingConfig.type)")
@@ -276,7 +276,7 @@ final class HTTPIntegrationTests: XCTestCase {
                 try await httpPing.start(with: pingConfig)
 
                 switch httpPing.pingStatus {
-                case .stopped:
+                case .cancelled:
                     XCTAssertNotNil(httpPing.summary?.totalCount)
                     XCTAssertLessThanOrEqual(httpPing.summary!.totalCount, waitSecond + 1)
                     XCTAssertEqual(httpPing.summary?.details.isEmpty, false)

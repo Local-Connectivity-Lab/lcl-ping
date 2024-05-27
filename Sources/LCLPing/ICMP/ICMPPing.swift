@@ -26,7 +26,7 @@ internal struct ICMPPing: Pingable {
             switch pingStatus {
             case .ready, .running, .error:
                 return .empty
-            case .stopped, .finished:
+            case .cancelled, .finished:
                 return pingSummary
             }
         }
@@ -73,7 +73,7 @@ internal struct ICMPPing: Pingable {
         let rewriteHeaders = rewriteHeaders
 #endif
 
-        if pingStatus == .stopped || pingStatus == .error {
+        if pingStatus == .cancelled || pingStatus == .error {
             return
         }
 
@@ -87,13 +87,13 @@ internal struct ICMPPing: Pingable {
                         TrafficControllerChannelHandler(networkLinkConfig: networkLinkConfig),
                         InboundHeaderRewriter(rewriteHeaders: rewriteHeaders),
                         IPDecoder(),
-                        ICMPDecoder(),
-                        ICMPDuplexer(configuration: pingConfiguration, resolvedAddress: resolvedAddress)
+                        ICMPDecoder()
+//                        ICMPDuplexer(configuration: pingConfiguration, resolvedAddress: resolvedAddress)
                        ]
 #else // !INTEGRATION_TEST
                        let handlers: [ChannelHandler] = [
                         IPDecoder(),
-                        ICMPDecoder(),
+                        ICMPDecoder()
 //                        ICMPDuplexer(configuration: pingConfiguration, resolvedAddress: resolvedAddress)
                        ]
 #endif // !INTEGRATION_TEST
@@ -152,9 +152,9 @@ internal struct ICMPPing: Pingable {
         case .success:
             self.pingSummary = summarizePingResponse(pingResponses, host: resolvedAddress)
 
-            precondition(pingStatus == .running || pingStatus == .stopped)
+            precondition(pingStatus == .running || pingStatus == .cancelled)
 
-            if self.pingStatus != .stopped {
+            if self.pingStatus != .cancelled {
                 pingStatus = .finished
             }
         case .failure(let failure):
@@ -172,9 +172,9 @@ internal struct ICMPPing: Pingable {
             logger.debug("stopping the icmp ping")
             self.asyncChannel?.channel.close(mode: .all, promise: nil)
             self.task?.cancel()
-            self.pingStatus = .stopped
+            self.pingStatus = .cancelled
             logger.debug("icmp ping stopped")
-        case .error, .stopped, .finished:
+        case .error, .cancelled, .finished:
             logger.debug("already in end state. no need to stop")
         }
     }

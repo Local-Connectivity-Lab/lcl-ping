@@ -35,3 +35,26 @@ extension LatencyEntry {
         case waiting
     }
 }
+
+internal struct HTTPLatency {
+    var requestStart: TimeInterval = .zero
+    var responseStart: TimeInterval = .zero
+    var responseEnd: TimeInterval = .zero
+    var serverTiming: TimeInterval = .zero
+    var latencyStatus: HTTPLatency.Status
+    var seqNum: UInt16
+
+    init(latencyStatus: HTTPLatency.Status = .waiting) {
+        self.latencyStatus = latencyStatus
+        self.seqNum = 0
+    }
+}
+
+extension HTTPLatency {
+    enum Status {
+        case finished
+        case timeout
+        case error(PingError)
+        case waiting
+    }
+}

@@ -321,10 +321,10 @@ final class ICMPIntegrationTests: XCTestCase {
             icmpPing.stop()
             try await icmpPing.start(with: pingConfig)
             switch icmpPing.pingStatus {
-            case .stopped:
+            case .cancelled:
                 XCTAssertNil(icmpPing.summary)
             default:
-                XCTFail("Invalid ICMP Ping state. Should be .stopped, but is \(icmpPing.pingStatus)")
+                XCTFail("Invalid ICMP Ping state. Should be .cancelled, but is \(icmpPing.pingStatus)")
             }
         default:
             XCTFail("Invalid PingConfig. Need HTTP, but received \(pingConfig.type)")
@@ -349,7 +349,7 @@ final class ICMPIntegrationTests: XCTestCase {
                 try await icmpPing.start(with: pingConfig)
 
                 switch icmpPing.pingStatus {
-                case .stopped:
+                case .cancelled:
                     XCTAssertNotNil(icmpPing.summary?.totalCount)
                     XCTAssertLessThanOrEqual(icmpPing.summary!.totalCount, waitSecond + 1)
                     XCTAssertEqual(icmpPing.summary?.details.isEmpty, false)

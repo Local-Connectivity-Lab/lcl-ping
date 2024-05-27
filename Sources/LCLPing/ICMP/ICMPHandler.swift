@@ -13,20 +13,131 @@
 import Foundation
 import NIOCore
 
-final class ICMPHandler {
+extension ICMPPingClient {
 
-    private let totalCount: UInt16
+    var identifier: UInt16 { return 0xbeef }
+
+    internal struct Request {
+        let sequenceNum: UInt16
+        let identifier: UInt16
+    }
+
+    /// The IPv4 Header
+    internal struct IPv4Header {
+        let versionAndHeaderLength: UInt8
+        let differentiatedServicesAndECN: UInt8
+        let totalLength: UInt16
+        let identification: UInt16
+        let flagsAndFragmentOffset: UInt16
+        let timeToLive: UInt8
+        let `protocol`: UInt8
+        let headerChecksum: UInt16
+        let sourceAddress: (UInt8, UInt8, UInt8, UInt8)
+        let destinationAddress: (UInt8, UInt8, UInt8, UInt8)
+    }
+
+    /// The ICMP request message header
+    internal struct ICMPHeader {
+
+        // ICMP message type (ECHO_REQUEST)
+        let type: UInt8
+        let code: UInt8
+        var checkSum: UInt16
+
+        // the packet identifier
+        let idenifier: UInt16
+
+        // the packet sequence number
+        let sequenceNum: UInt16
+
+        var payload: ICMPRequestPayload
+
+        init(type: UInt8 = ICMPType.echoRequest.rawValue, code: UInt8 = 0, idenifier: UInt16, sequenceNum: UInt16) {
+            self.type = type
+            self.code = code
+            self.checkSum = 0
+            self.idenifier = idenifier
+            self.sequenceNum = sequenceNum
+            self.payload = ICMPRequestPayload(timestamp: Date.currentTimestamp, identifier: self.idenifier)
+        }
+
+        /// Calculate and then set the checksum of the request header
+        mutating func setChecksum() {
+            self.checkSum = calcChecksum()
+        }
+
+        /// Calculate the checksum of the given ICMP header
+        func calcChecksum() -> UInt16 {
+            let typecode = Data([self.type, self.code]).withUnsafeBytes { $0.load(as: UInt16.self) }
+            var sum = UInt64(typecode) + UInt64(self.idenifier) + UInt64(self.sequenceNum)
+            let payload = self.payload.data
+
+            for idx in stride(from: 0, to: payload.count, by: 2) {
+                sum += Data([payload[idx], payload[idx + 1]]).withUnsafeBytes { UInt64($0.load(as: UInt16.self)) }
+            }
+
+            while sum >> 16 != 0 {
+                sum = (sum & 0xFFFF) + (sum >> 16)
+            }
+
+            return ~UInt16(sum)
+        }
+    }
+
+    /// The payload in the ICMP message
+    struct ICMPRequestPayload: Hashable {
+        let timestamp: TimeInterval
+        let identifier: UInt16
+    }
+
+    /// ICMP message type
+    internal enum ICMPType: UInt8 {
+
+        /// ICMP Request to host
+        case echoRequest = 8
+
+        /// ICMP Reply from host
+        case echoReply = 0
+    }
+}
+
+extension ICMPPingClient.ICMPHeader {
+    mutating func toData() -> Data {
+        return Data(bytes: &self, count: sizeof(ICMPPingClient.ICMPHeader.self))
+    }
+
+    var data: Data {
+        var payload = self
+        return Data(bytes: &payload, count: sizeof(ICMPPingClient.ICMPHeader.self))
+    }
+}
+
+extension ICMPPingClient.ICMPRequestPayload {
+
+    /// Convert ICMP request payload in the header to byte array
+    var data: Data {
+        var payload = self
+        return Data(bytes: &payload, count: sizeof(ICMPPingClient.ICMPRequestPayload.self))
+    }
+}
+
+final class ICMPHandler: PingHandler {
+
+    typealias Request = ICMPPingClient.ICMPHeader
+    typealias Response = ICMPPingClient.ICMPHeader
+
+    private let totalCount: Int
     /// sequence number to ICMP request
-    private var seqToRequest: [UInt16: ICMPHeader]
+    private var seqToRequest: [UInt16: ICMPPingClient.ICMPHeader]
 
     /// sequence number to an optional ICMP response
-    private var seqToResponse: [UInt16: ICMPHeader?]
+    private var seqToResponse: [UInt16: ICMPPingClient.ICMPHeader?]
     private var responseSeqNumSet: Set<UInt16>
     private var result: [PingResponse]
-    
+
     private var icmpPingPromise: EventLoopPromise<[PingResponse]>
 
-    init(totalCount: UInt16, promise: EventLoopPromise<[PingResponse]>) {
+    init(totalCount: Int, promise: EventLoopPromise<[PingResponse]>) {
         self.totalCount = totalCount
         self.seqToRequest = [:]
         self.seqToResponse = [:]
@@ -34,33 +145,28 @@ final class ICMPHandler {
         self.result = []
         self.icmpPingPromise = promise
     }
-    
-    public var futureResult: EventLoopFuture<[PingResponse]> {
-        return self.icmpPingPromise.futureResult
-    }
 
-    func handleRead(response: ICMPHeader) {
+    func handleRead(response: ICMPPingClient.ICMPHeader) {
         let type = response.type
         let code = response.code
         let sequenceNum = response.sequenceNum
         let identifier = response.idenifier
-        
+
         print("[ICMPDuplexer][\(#function)]: received icmp response with type: \(type), code: \(code), sequence number: \(sequenceNum), identifier: \(identifier)")
-        
+
         let currentTimestamp = Date.currentTimestamp
+
+        guard let icmpRequest = self.seqToRequest[sequenceNum] else {
+            logger.error("[ICMPDuplexer][\(#function)]: Unable to find matching request with sequence number \(sequenceNum)")
+            self.handleError(error: PingError.invalidICMPResponse)
+            return
+        }
 
         if self.responseSeqNumSet.contains(sequenceNum) {
             let pingResponse: PingResponse = self.seqToResponse[sequenceNum] == nil ? .timeout(sequenceNum) : .duplicated(sequenceNum)
             print("[ICMPDuplexer][\(#function)]: response for #\(sequenceNum) is \(self.seqToResponse[sequenceNum] == nil ? "timeout" : "duplicate")")
             result.append(pingResponse)
-            checkIfComplete()
-            return
-        }
-
-        guard let icmpRequest = self.seqToRequest[sequenceNum] else {
-            logger.error("[ICMPDuplexer][\(#function)]: Unable to find matching request with sequence number \(sequenceNum)")
-            self.handleError(sequenceNum: sequenceNum, error: PingError.invalidICMPResponse)
-            checkIfComplete()
+            shouldCloseHandler()
             return
         }
 
@@ -68,131 +174,132 @@ final class ICMPHandler {
         self.responseSeqNumSet.insert(sequenceNum)
 
         switch (type, code) {
-        case (ICMPType.echoReply.rawValue, 0):
+        case (ICMPPingClient.ICMPType.echoReply.rawValue, 0):
             break
         case (3, 0):
             self.result.append(.error(sequenceNum, PingError.icmpDestinationNetworkUnreachable))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (3, 1):
             self.result.append(.error(sequenceNum, PingError.icmpDestinationHostUnreachable))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (3, 2):
             self.result.append(.error(sequenceNum, PingError.icmpDestinationProtocoltUnreachable))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (3, 3):
             self.result.append(.error(sequenceNum, PingError.icmpDestinationPortUnreachable))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (3, 4):
             self.result.append(.error(sequenceNum, PingError.icmpFragmentationRequired))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (3, 5):
             self.result.append(.error(sequenceNum, PingError.icmpSourceRouteFailed))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (3, 6):
             self.result.append(.error(sequenceNum, PingError.icmpUnknownDestinationNetwork))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (3, 7):
             self.result.append(.error(sequenceNum, PingError.icmpUnknownDestinationHost))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (3, 8):
             self.result.append(.error(sequenceNum, PingError.icmpSourceHostIsolated))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (3, 9):
             self.result.append(.error(sequenceNum, PingError.icmpNetworkAdministrativelyProhibited))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (3, 10):
             self.result.append(.error(sequenceNum, PingError.icmpHostAdministrativelyProhibited))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (3, 11):
             self.result.append(.error(sequenceNum, PingError.icmpNetworkUnreachableForToS))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (3, 12):
             self.result.append(.error(sequenceNum, PingError.icmpHostUnreachableForToS))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (3, 13):
             self.result.append(.error(sequenceNum, PingError.icmpCommunicationAdministrativelyProhibited))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (3, 14):
             self.result.append(.error(sequenceNum, PingError.icmpHostPrecedenceViolation))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (3, 15):
             self.result.append(.error(sequenceNum, PingError.icmpPrecedenceCutoffInEffect))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (5, 0):
             self.result.append(.error(sequenceNum, PingError.icmpRedirectDatagramForNetwork))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (5, 1):
             self.result.append(.error(sequenceNum, PingError.icmpRedirectDatagramForHost))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (5, 2):
             self.result.append(.error(sequenceNum, PingError.icmpRedirectDatagramForTosAndNetwork))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (5, 3):
             self.result.append(.error(sequenceNum, PingError.icmpRedirectDatagramForTosAndHost))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (9, 0):
             self.result.append(.error(sequenceNum, PingError.icmpRouterAdvertisement))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (10, 0):
             self.result.append(.error(sequenceNum, PingError.icmpRouterDiscoverySelectionSolicitation))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (11, 0):
             self.result.append(.error(sequenceNum, PingError.icmpTTLExpiredInTransit))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (11, 1):
             self.result.append(.error(sequenceNum, PingError.icmpFragmentReassemblyTimeExceeded))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (12, 0):
             self.result.append(.error(sequenceNum, PingError.icmpPointerIndicatesError))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (12, 1):
             self.result.append(.error(sequenceNum, PingError.icmpMissingARequiredOption))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         case (12, 2):
             self.result.append(.error(sequenceNum, PingError.icmpBadLength))
-            checkIfComplete()
+            shouldCloseHandler()
             return
         default:
             self.result.append(.error(sequenceNum, PingError.unknownError("Received unknown ICMP type (\(type)) and ICMP code (\(code))")))
+            shouldCloseHandler()
             return
         }
 
         if response.checkSum != response.calcChecksum() {
             self.handleError(sequenceNum: sequenceNum, error: PingError.invalidICMPChecksum)
-            checkIfComplete()
+            shouldCloseHandler()
             return
         }
 
         #if canImport(Darwin)
         if identifier != icmpRequest.idenifier {
             self.handleError(sequenceNum: sequenceNum, error: PingError.invalidICMPIdentifier)
-            checkIfComplete()
+            shouldCloseHandler()
             return
         }
         #endif
@@ -201,17 +308,19 @@ final class ICMPHandler {
 
         let pingResponse: PingResponse = .ok(sequenceNum, latency, currentTimestamp)
         self.result.append(pingResponse)
-        checkIfComplete()
+        shouldCloseHandler()
     }
 
-    func handleWrite(request: ICMPHeader) {
+    func handleWrite(request: ICMPPingClient.ICMPHeader) {
         self.seqToRequest[request.sequenceNum] = request
     }
-    
-    func handleTimeout(sequenceNum: UInt16) {
-        if !self.responseSeqNumSet.contains(sequenceNum) {
-            self.responseSeqNumSet.insert(sequenceNum)
-            self.result.append(.timeout(sequenceNum))
+
+    func handleTimeout(sequenceNumber: UInt16) {
+        if !self.responseSeqNumSet.contains(sequenceNumber) {
+            print("#\(sequenceNumber) timed out")
+            self.responseSeqNumSet.insert(sequenceNumber)
+            self.result.append(.timeout(sequenceNumber))
+            shouldCloseHandler()
         }
     }
 
@@ -219,7 +328,7 @@ final class ICMPHandler {
         self.handleError(sequenceNum: nil, error: error)
         self.icmpPingPromise.fail(error)
     }
-    
+
     func handleError(sequenceNum: UInt16?, error: Error) {
         self.result.append(.error(sequenceNum, error))
     }
@@ -229,13 +338,10 @@ final class ICMPHandler {
         self.seqToResponse.removeAll()
         self.result.removeAll()
     }
-    
-    func shouldCloseHandler() {
-        checkIfComplete(shouldForceClose: true)
-    }
-    
-    private func checkIfComplete(shouldForceClose: Bool = false) {
-        if self.responseSeqNumSet.count == self.totalCount && self.seqToResponse.count == self.totalCount || shouldForceClose {
+
+    func shouldCloseHandler(shouldForceClose: Bool = false) {
+        print("responseSeqNumSet.count = \(responseSeqNumSet.count) && seqToResponse.count = \(seqToResponse.count)")
+        if self.responseSeqNumSet.count == self.totalCount || shouldForceClose {
             self.icmpPingPromise.succeed(self.result)
         }
     }

@@ -17,15 +17,15 @@ protocol Rewritable {
     func rewrite(newValues: [PartialKeyPath<Self>: AnyObject]) -> Self
 }
 
-extension ICMPRequestPayload: Rewritable {
-    func rewrite(newValues: [PartialKeyPath<ICMPRequestPayload>: AnyObject]) -> ICMPRequestPayload {
-        return ICMPRequestPayload(timestamp: newValues[\.timestamp] as? TimeInterval ?? self.timestamp, identifier: newValues[\.identifier] as? UInt16 ?? self.identifier)
+extension ICMPPingClient.ICMPRequestPayload: Rewritable {
+    func rewrite(newValues: [PartialKeyPath<ICMPPingClient.ICMPRequestPayload>: AnyObject]) -> ICMPPingClient.ICMPRequestPayload {
+        return ICMPPingClient.ICMPRequestPayload(timestamp: newValues[\.timestamp] as? TimeInterval ?? self.timestamp, identifier: newValues[\.identifier] as? UInt16 ?? self.identifier)
     }
 }
 
-extension IPv4Header: Rewritable {
-    func rewrite(newValues: [PartialKeyPath<IPv4Header>: AnyObject]) -> IPv4Header {
-        return IPv4Header(
+extension ICMPPingClient.IPv4Header: Rewritable {
+    func rewrite(newValues: [PartialKeyPath<ICMPPingClient.IPv4Header>: AnyObject]) -> ICMPPingClient.IPv4Header {
+        return ICMPPingClient.IPv4Header(
             versionAndHeaderLength: newValues[\.versionAndHeaderLength] as? UInt8 ?? self.versionAndHeaderLength,
             differentiatedServicesAndECN: newValues[\.differentiatedServicesAndECN] as? UInt8 ?? self.differentiatedServicesAndECN,
             totalLength: newValues[\.totalLength] as? UInt16 ?? self.totalLength,
@@ -40,16 +40,16 @@ extension IPv4Header: Rewritable {
     }
 }
 
-extension ICMPHeader: Rewritable {
-    func rewrite(newValues: [PartialKeyPath<ICMPHeader>: AnyObject]) -> ICMPHeader {
-        var newHeader = ICMPHeader(
+extension ICMPPingClient.ICMPHeader: Rewritable {
+    func rewrite(newValues: [PartialKeyPath<ICMPPingClient.ICMPHeader>: AnyObject]) -> ICMPPingClient.ICMPHeader {
+        var newHeader = ICMPPingClient.ICMPHeader(
             type: newValues[\.type] as? UInt8 ?? self.type,
             code: newValues[\.code] as? UInt8 ?? self.code,
             idenifier: newValues[\.idenifier] as? UInt16 ?? self.idenifier,
             sequenceNum: newValues[\.sequenceNum] as? UInt16 ?? self.sequenceNum
         )
 
-        newHeader.payload = self.payload.rewrite(newValues: newValues[\.payload] as! [PartialKeyPath<ICMPRequestPayload>: AnyObject])
+        newHeader.payload = self.payload.rewrite(newValues: newValues[\.payload] as! [PartialKeyPath<ICMPPingClient.ICMPRequestPayload>: AnyObject])
         return newHeader
     }
 }

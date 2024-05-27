@@ -11,6 +11,7 @@
 //
 
 import Foundation
+import NIOCore
 
 extension Array where Element == PingResult {
 
@@ -52,5 +53,58 @@ extension Array where Element == PingResult {
 
         return sqrt(map { ($0.latency - avg) * ($0.latency - avg) }.reduce(0.0, +) / Double(count - 1))
     }
+}
 
+extension Array where Element == PingResponse {
+    func summarize(host: SocketAddress) -> PingSummary {
+        var localMin: Double = .greatestFiniteMagnitude
+        var localMax: Double = .zero
+        var consecutiveDiffSum: Double = .zero
+        var errorCount: Int = 0
+        var errors: Set<PingSummary.PingErrorSummary> = Set()
+        var pingResults: [PingResult] = []
+        var timeout: Set<UInt16> = Set()
+        var duplicates: Set<UInt16> = Set()
+
+        for pingResponse in self {
+            switch pingResponse {
+            case .ok(let sequenceNum, let latency, let timstamp):
+                localMin = Swift.min(localMin, latency)
+                localMax = Swift.max(localMax, latency)
+                if pingResults.count >= 1 {
+                    consecutiveDiffSum += abs(latency - pingResults.last!.latency)
+                }
+                pingResults.append( PingResult(seqNum: sequenceNum, latency: latency, timestamp: timstamp) )
+            case .duplicated(let sequenceNum):
+                duplicates.insert(sequenceNum)
+            case .timeout(let sequenceNum):
+                timeout.insert(sequenceNum)
+            case .error(let seqNum, let error):
+                errorCount += 1
+                if let error = error {
+                    errors.insert(PingSummary.PingErrorSummary(seqNum: seqNum, reason: error.localizedDescription))
+                }
+            }
+        }
+
+        let pingResultLen = pingResults.count
+        let avg = pingResults.avg
+        let stdDev = pingResults.stdDev
+
+        let pingSummary = PingSummary(min: localMin,
+                                      max: localMax,
+                                      avg: avg,
+                                      median: pingResults.median,
+                                      stdDev: stdDev,
+                                      jitter: pingResultLen == 0 ? 0.0 : consecutiveDiffSum / Double(pingResultLen),
+                                      details: pingResults,
+                                      totalCount: pingResultLen + errorCount + timeout.count,
+                                      timeout: timeout,
+                                      duplicates: duplicates,
+                                      errors: errors,
+                                      ipAddress: host.ipAddress ?? "",
+                                      port: host.port ?? 0, protocol: host.protocol.rawValue)
+
+        return pingSummary
+    }
 }

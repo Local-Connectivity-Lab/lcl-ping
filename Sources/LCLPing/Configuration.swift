@@ -12,6 +12,7 @@
 
 import Foundation
 import NIOHTTP1
+import NIOCore
 
 extension LCLPing {
 
@@ -122,5 +123,97 @@ extension LCLPing {
 
         /// Time, in second, to wait for a reply for each packet sent. Default is 1s.
         public var timeout: TimeInterval
+    }
+}
+
+extension LCLPing {
+    public enum PingType {
+        case icmp
+        case http
+    }
+
+    public struct HTTPConfiguration {
+
+        public static let defaultHeaders: [String: String] =
+            [
+                "User-Agent": "lclping",
+                "Accept": "application/json",
+                "Connection": "close"
+            ]
+
+        public let url: URL
+        public var count: Int
+//        public var interval: TimeAmount
+        public var timeout: TimeAmount
+
+        public var headers: [String: String]
+        public var useServerTiming: Bool
+
+        public let host: String
+        public let schema: Schema
+        public let port: Int
+
+        public init(url: URL, count: Int = 10, interval: TimeAmount = .seconds(1), timeout: TimeAmount = .seconds(1), headers: [String: String] = HTTPConfiguration.defaultHeaders, useServerTiming: Bool = false) throws {
+            self.url = url
+            self.count = count
+//            self.interval = interval
+            self.timeout = timeout
+            self.headers = headers
+            self.useServerTiming = useServerTiming
+
+            guard let _host = url.host, !_host.isEmpty else {
+                throw PingError.httpMissingHost
+            }
+            host = _host
+
+            guard let s = url.scheme, !s.isEmpty else {
+                throw PingError.httpMissingSchema
+            }
+
+            guard let _schema = Schema(rawValue: s.lowercased()) else {
+                throw PingError.httpMissingSchema
+            }
+            self.schema = _schema
+
+            port = url.port ?? schema.defaultPort
+        }
+
+        public init(url: String) throws {
+            guard let urlObj = URL(string: url) else {
+                throw PingError.invalidURL
+            }
+            try self.init(url: urlObj)
+        }
+
+        public func makeHTTPRequest() -> HTTPRequestHead {
+            var httpHeaders = self.makeHTTPHeaders()
+            if !httpHeaders.contains(name: "Host") {
+                var host = self.host
+                if self.port != self.schema.defaultPort {
+                    host += ":\(self.port)"
+                }
+                httpHeaders.add(name: "Host", value: host)
+            }
+            return HTTPRequestHead(version: .http1_1, method: .GET, uri: url.uri, headers: httpHeaders)
+        }
+
+        public func makeHTTPHeaders() -> HTTPHeaders {
+            let headerDictionary = self.headers.isEmpty ? HTTPConfiguration.defaultHeaders : self.headers
+            return HTTPHeaders(headerDictionary.map {($0, $1)})
+        }
+    }
+}
+
+extension URL {
+    var uri: String {
+        if self.path.isEmpty {
+            return "/"
+        }
+
+        var base = URLComponents(url: self, resolvingAgainstBaseURL: false)?.percentEncodedPath ?? self.path
+        if let query = self.query {
+            base += "?" + query
+        }
+        return base
     }
 }
