@@ -92,18 +92,20 @@ public final class ICMPPingClient {
     }
 
     public func cancel() {
-        switch self.state {
-        case .ready, .running:
-            self.stateLock.withLock {
-                self.state = .cancelled
+        self.stateLock.withLock {
+            switch self.state {
+            case .ready, .running:
+                self.stateLock.withLock {
+                    self.state = .cancelled
+                }
+                shutdown()
+            case .error:
+                print("No need to cancel when ICMP Client is in error state.")
+            case .cancelled:
+                print("No need to cancel when ICMP Client is in cancelled state.")
+            case .finished:
+                print("No need to cancel when test is finished.")
             }
-            shutdown()
-        case .error:
-            print("No need to cancel when ICMP Client is in error state.")
-        case .cancelled:
-            print("No need to cancel when ICMP Client is in cancelled state.")
-        case .finished:
-            print("No need to cancel when test is finished.")
         }
     }
 

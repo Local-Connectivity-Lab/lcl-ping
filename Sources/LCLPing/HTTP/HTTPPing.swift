@@ -19,6 +19,7 @@ import NIOSSL
 import Collections
 
 typealias HTTPOutboundIn = UInt16
+typealias HTTPOuboundInput = (UInt16, HTTPRequestHead)
 
 internal struct HTTPPing: Pingable {
 
@@ -28,7 +29,7 @@ internal struct HTTPPing: Pingable {
             switch pingStatus {
             case .ready, .running, .error:
                 return .empty
-            case .stopped, .finished:
+            case .cancelled, .finished:
                 return pingSummary
             }
         }
@@ -68,8 +69,8 @@ internal struct HTTPPing: Pingable {
 
         logger.debug("[\(#function)]: using address: \(addr), port: \(port)")
 
-        guard let url = URL(string: addr) else {
-            throw PingError.invalidIPv4URL
+         guard let url = URL(string: addr) else {
+            throw PingError.invalidURL
         }
 
         guard let host = url.host else {
@@ -94,7 +95,7 @@ internal struct HTTPPing: Pingable {
         let resolvedAddress = try SocketAddress.makeAddressResolvingHost(host, port: Int(port))
         logger.debug("resolved address is \(resolvedAddress)")
 
-        if pingStatus == .stopped || pingStatus == .error {
+        if pingStatus == .cancelled || pingStatus == .error {
             return
         }
 
@@ -104,7 +105,7 @@ internal struct HTTPPing: Pingable {
                 var pingResponses: [PingResponse] = []
 
                 for cnt in 0..<pingConfiguration.count {
-                    if pingStatus == .stopped {
+                    if pingStatus == .cancelled {
                         logger.debug("group task is cancelled")
                         group.cancelAll()
                         return pingResponses
@@ -165,7 +166,7 @@ internal struct HTTPPing: Pingable {
                 }
 
                 do {
-                    while pingStatus != .stopped, let next = try await group.next() {
+                    while pingStatus != .cancelled, let next = try await group.next() {
                         guard let next = next else {
                             continue
                         }
@@ -179,7 +180,7 @@ internal struct HTTPPing: Pingable {
                     throw error
                 }
 
-                if pingStatus == .stopped {
+                if pingStatus == .cancelled {
                     logger.debug("[\(#function)]: ping is cancelled. Cancel all other tasks in the task group")
                     group.cancelAll()
                 }
@@ -191,7 +192,7 @@ internal struct HTTPPing: Pingable {
             case .running:
                 pingStatus = .finished
                 fallthrough
-            case .stopped:
+            case .cancelled:
                 pingSummary = summarizePingResponse(pingResponses, host: resolvedAddress)
             case .finished, .ready, .error:
                 fatalError("wrong state: \(pingStatus)")
@@ -227,8 +228,8 @@ internal struct HTTPPing: Pingable {
     mutating func stop() {
         switch pingStatus {
         case .ready, .running:
-            pingStatus = .stopped
-        case .error, .stopped, .finished:
+            pingStatus = .cancelled
+        case .error, .cancelled, .finished:
             logger.debug("already in ending state. no need to stop")
         }
     }

@@ -24,15 +24,15 @@ public struct PingSummary: Equatable, Encodable {
     public let totalCount: Int
     public let timeout: Set<UInt16>
     public let duplicates: Set<UInt16>
-    public let errors: Set<PingErrorSummary>
+    public let errors: Set<ErrorSummary>
     public let ipAddress: String
     public let port: Int
     public let `protocol`: CInt
 }
 
 extension PingSummary {
-    public struct PingErrorSummary: Hashable, Encodable {
-        public static func == (lhs: PingSummary.PingErrorSummary, rhs: PingSummary.PingErrorSummary) -> Bool {
+    public struct ErrorSummary: Hashable, Encodable {
+        public static func == (lhs: PingSummary.ErrorSummary, rhs: PingSummary.ErrorSummary) -> Bool {
             return lhs.seqNum == rhs.seqNum
         }
 

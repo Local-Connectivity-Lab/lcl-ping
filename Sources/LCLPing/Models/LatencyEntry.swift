@@ -41,20 +41,20 @@ internal struct HTTPLatency {
     var responseStart: TimeInterval = .zero
     var responseEnd: TimeInterval = .zero
     var serverTiming: TimeInterval = .zero
-    var latencyStatus: HTTPLatency.Status
+    var state: HTTPLatency.State
     var seqNum: UInt16
 
-    init(latencyStatus: HTTPLatency.Status = .waiting) {
-        self.latencyStatus = latencyStatus
+    init(latencyStatus: HTTPLatency.State = .waiting) {
+        self.state = latencyStatus
         self.seqNum = 0
     }
 }
 
 extension HTTPLatency {
-    enum Status {
+    enum State {
         case finished
         case timeout
-        case error(PingError)
+        case error(Error)
         case waiting
     }
 }

@@ -61,7 +61,7 @@ internal func summarizePingResponse(_ pingResponses: [PingResponse], host: Socke
     var localMax: Double = .zero
     var consecutiveDiffSum: Double = .zero
     var errorCount: Int = 0
-    var errors: Set<PingSummary.PingErrorSummary> = Set()
+    var errors: Set<PingSummary.ErrorSummary> = Set()
     var pingResults: [PingResult] = []
     var timeout: Set<UInt16> = Set()
     var duplicates: Set<UInt16> = Set()
@@ -82,7 +82,7 @@ internal func summarizePingResponse(_ pingResponses: [PingResponse], host: Socke
         case .error(let seqNum, let error):
             errorCount += 1
             if let error = error {
-                errors.insert(PingSummary.PingErrorSummary(seqNum: seqNum, reason: error.localizedDescription))
+                errors.insert(PingSummary.ErrorSummary(seqNum: seqNum, reason: error.localizedDescription))
             }
         }
     }
