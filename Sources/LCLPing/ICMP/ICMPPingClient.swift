@@ -26,10 +26,10 @@ public final class ICMPPingClient {
 
     private let stateLock = NIOLock()
 
-    #if INTEGRATION_TEST
+//    #if INTEGRATION_TEST
     private var networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration?
     private var rewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject]?
-    #endif
+//    #endif
 
     public init(eventLoopGroup: EventLoopGroup = MultiThreadedEventLoopGroup.singleton, configuration: Configuration) {
         self.eventLoopGroup = eventLoopGroup
@@ -39,12 +39,15 @@ public final class ICMPPingClient {
         self.handler = ICMPHandler(totalCount: self.configuration.count, promise: promise)
     }
 
-    #if INTEGRATION_TEST
-    init(networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration, rewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject]?) {
+//    #if INTEGRATION_TEST
+    convenience init(networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration,
+                     rewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject]?,
+                     configuration: Configuration) {
+        self.init(configuration: configuration)
         self.networkLinkConfig = networkLinkConfig
         self.rewriteHeaders = rewriteHeaders
     }
-    #endif
+//    #endif
 
     deinit {
         print("ICMPPingClient deinit called")
@@ -52,59 +55,66 @@ public final class ICMPPingClient {
     }
 
     public func start() -> EventLoopFuture<PingSummary> {
-        switch self.state {
-        case .ready:
-            self.stateLock.withLock {
+        let resolvedAddress = self.configuration.endpoint.resolvedAddress!
+        return self.stateLock.withLock {
+            switch self.state {
+            case .ready:
                 self.state = .running
-            }
-            logger.logLevel = .debug
-            let resolvedAddress = self.configuration.endpoint.resolvedAddress!
-            return self.connect(to: resolvedAddress).flatMap { channel in
-                self.channel = channel
-                channel.closeFuture.whenComplete { result in
-                    switch result {
-                    case .success:
-                        self.handler.reset()
-                    case .failure:
-                        self.stateLock.withLock {
+
+                return self.connect(to: resolvedAddress).flatMap { channel in
+                    self.channel = channel
+                    channel.closeFuture.whenComplete { result in
+                        switch result {
+                        case .success:
+                            self.handler.reset()
+                        case .failure:
                             self.state = .error
                         }
                     }
-                }
 
-                for cnt in 0..<self.configuration.count {
-                    channel.eventLoop.scheduleTask(in: cnt * self.configuration.interval) {
-                        channel.write(ICMPPingClient.Request(sequenceNum: UInt16(cnt), identifier: self.identifier), promise: nil)
+                    for cnt in 0..<self.configuration.count {
+                        channel.eventLoop.scheduleTask(in: cnt * self.configuration.interval) {
+                            channel.write(
+                                ICMPPingClient.Request(
+                                    sequenceNum: UInt16(cnt),
+                                    identifier: self.identifier
+                                ),
+                                promise: nil
+                            )
+                        }
+                    }
+
+                    return self.promise.futureResult.flatMap { pingResponse in
+                        let summary = pingResponse.summarize(host: resolvedAddress)
+                        self.stateLock.withLockVoid {
+                            self.state = .finished
+                        }
+                        return channel.eventLoop.makeSucceededFuture(summary)
                     }
                 }
-
-                return self.promise.futureResult.flatMap { pingResponse in
-                    let summary = pingResponse.summarize(host: resolvedAddress)
-                    self.stateLock.withLock {
-                        self.state = .finished
-                    }
-                    return channel.eventLoop.makeSucceededFuture(summary)
-                }
+            default:
+                preconditionFailure("Cannot run ICMP Ping when the client is not in ready state.")
             }
-        default:
-            preconditionFailure("Cannot run ICMP Ping when the client is not in ready state.")
         }
     }
 
     public func cancel() {
-        self.stateLock.withLock {
+        logger.debug("[\(#fileID)][\(#line)][\(#function)]: Cancel icmp ping!")
+        self.stateLock.withLockVoid {
             switch self.state {
-            case .ready, .running:
-                self.stateLock.withLock {
-                    self.state = .cancelled
-                }
+            case .ready:
+                self.state = .cancelled
+                self.promise.fail(PingError.taskIsCancelled)
+                shutdown()
+            case .running:
+                self.state = .cancelled
                 shutdown()
             case .error:
-                print("No need to cancel when ICMP Client is in error state.")
+                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in error state.")
             case .cancelled:
-                print("No need to cancel when ICMP Client is in cancelled state.")
+                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in cancelled state.")
             case .finished:
-                print("No need to cancel when test is finished.")
+                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when test is finished.")
             }
         }
     }
@@ -117,28 +127,28 @@ public final class ICMPPingClient {
         return DatagramBootstrap(group: self.eventLoopGroup)
             .protocolSubtype(.init(.icmp))
             .channelInitializer { channel in
-                #if INTEGRATION_TEST
-                guard let networkLinkConfig = self.networkLinkConfig, let rewriteHeaders = self.rewriteHeaders else {
-                    preconditionFailure("Test should initialize NetworkLinkConfiguration and Header Rewriter.")
+//                #if INTEGRATION_TEST
+                guard let networkLinkConfig = self.networkLinkConfig else {
+                    preconditionFailure("Test should initialize NetworkLinkConfiguration")
                 }
                 let handlers: [ChannelHandler] = [
                     TrafficControllerChannelHandler(networkLinkConfig: networkLinkConfig),
-                    InboundHeaderRewriter(rewriteHeaders: rewriteHeaders),
+                    InboundHeaderRewriter(rewriteHeaders: self.rewriteHeaders),
                     IPDecoder(),
                     ICMPDecoder(),
                     ICMPDuplexer(resolvedAddress: resolvedAddress, handler: self.handler)
                 ]
-                #else
-                let handlers: [ChannelHandler] = [
-                    IPDecoder(),
-                    ICMPDecoder(),
-                    ICMPDuplexer(resolvedAddress: resolvedAddress, handler: self.handler)
-                ]
-                #endif
+//                #else
+//                let handlers: [ChannelHandler] = [
+//                    IPDecoder(),
+//                    ICMPDecoder(),
+//                    ICMPDuplexer(resolvedAddress: resolvedAddress, handler: self.handler)
+//                ]
+//                #endif
                 do {
                     try channel.pipeline.syncOperations.addHandlers(handlers)
                 } catch {
-                    self.stateLock.withLock {
+                    self.stateLock.withLockVoid {
                         self.state = .error
                     }
                     return channel.eventLoop.makeFailedFuture(error)
@@ -148,11 +158,9 @@ public final class ICMPPingClient {
     }
 
     private func shutdown() {
-        do {
-            try self.channel?.close(mode: .all).wait()
-            try self.eventLoopGroup.any().syncShutdownGracefully()
-        } catch {
-            logger.error("Cannot shut down ICMP Ping Client gracefully: \(error)")
+        print("shut down icmp ping client")
+        self.channel?.close(mode: .all).whenFailure { error in
+            print("Cannot close channel: \(error)")
         }
     }
 }

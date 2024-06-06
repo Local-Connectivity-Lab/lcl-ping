@@ -55,7 +55,7 @@ try await ping.start(pingConfiguration: pingConfig)
 switch ping.status {
 case .error, .ready, .running:
     // handle error here
-case .stopped, .finished:
+case .cancelled, .finished:
     // retrieve ping summary
     print(ping.summary)
 }

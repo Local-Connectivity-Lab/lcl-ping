@@ -228,7 +228,7 @@ final class HTTPDuplexer1Tests: XCTestCase {
             (1, [:], estimatedServerTiming),
             (2, ["Server-Timing": "cpu;dur=2.4"], 2.4),
             (3, ["Server-Timing": "db;dur=36.4, app;dur=47.2"], 83.6),
-            (4, ["Server-Timing": "total;dur="], 0.0),
+            (4, ["Server-Timing": "total;dur="], estimatedServerTiming),
             (5, ["Server-Timing": "a;dur=1.1, b;dur=2.2; c;dur=3.3, d;dur=4.4, e;dur=5.5, f;dur=6.6, g;dur=7.7, h;dur=8.8, i;dur=9.9"], 49.5)
         ]
 
@@ -238,7 +238,7 @@ final class HTTPDuplexer1Tests: XCTestCase {
             let (seqNum, httpHeader, serverTiming) = parameter
             let httpRequest = config.makeHTTPRequest(for: seqNum)
             let promise = self.channel.eventLoop.makePromise(of: PingResponse.self)
-            let handler = HTTPHandler1(promise: promise)
+            let handler = HTTPHandler1(useServerTiming: config.useServerTiming, promise: promise)
             XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPDuplexer1(configuration: config, handler: handler)).wait())
             channel.pipeline.fireChannelActive()
             let httpResponseHead = HTTPClientResponsePart.head(.init(version: .http1_1, status: .ok, headers: httpHeader))
@@ -252,7 +252,7 @@ final class HTTPDuplexer1Tests: XCTestCase {
 
             case .ok(let seq, let latency, _):
                 XCTAssertEqual(seq, seqNum)
-                XCTAssertLessThan(latency - serverTiming, 1)
+                XCTAssertLessThanOrEqual(abs(latency), serverTiming)
             default:
                 XCTFail("Invalid result state for sequence number \(seqNum)")
             }

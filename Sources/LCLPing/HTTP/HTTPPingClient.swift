@@ -21,15 +21,30 @@ public final class HTTPPingClient {
     private let eventLoopGroup: EventLoopGroup
     private var state: PingState
     private let configuration: Configuration
-    private var channels: [Channel]
+    private var channels: NIOLockedValueBox<[Channel]>
+    private var resultPromise: EventLoopPromise<PingSummary>
+    private var responses: [PingResponse]
+    private var resolvedAddress: SocketAddress?
 
     private let stateLock = NIOLock()
 
-    public init(eventLoopGroup: EventLoopGroup = MultiThreadedEventLoopGroup.singletonMultiThreadedEventLoopGroup, configuration: Configuration) {
+    private var networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration?
+
+    public init(eventLoopGroup: EventLoopGroup = MultiThreadedEventLoopGroup.singletonMultiThreadedEventLoopGroup,
+                configuration: Configuration) {
         self.eventLoopGroup = eventLoopGroup
         self.state = .ready
         self.configuration = configuration
-        self.channels = []
+        self.channels = .init([])
+        self.resultPromise = self.eventLoopGroup.any().makePromise(of: PingSummary.self)
+        self.responses = [PingResponse]()
+    }
+
+    // TODO: should add compile flag
+    convenience init(configuration: Configuration,
+                     networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration) {
+        self.init(configuration: configuration)
+        self.networkLinkConfig = networkLinkConfig
     }
 
     deinit {
@@ -37,69 +52,117 @@ public final class HTTPPingClient {
     }
 
     public func start() throws -> EventLoopFuture<PingSummary> {
-        logger.logLevel = .debug
-        var responses = [PingResponse]()
-        let resultPromise = self.eventLoopGroup.any().makePromise(of: PingSummary.self)
-        let resolvedAddress = try! SocketAddress.makeAddressResolvingHost(self.configuration.host, port: self.configuration.port)
-        for cnt in 0..<self.configuration.count {
-            let promise = self.eventLoopGroup.any().makePromise(of: PingResponse.self)
-            self.connect(to: resolvedAddress, resultPromise: promise).whenSuccess { channel in
-                self.channels.append(channel)
-                print(channel.pipeline.debugDescription)
-                channel.eventLoop.scheduleTask(in: self.configuration.readTimeout * cnt) {
-                    let request = self.configuration.makeHTTPRequest(for: UInt16(cnt))
-                    channel.write(request, promise: nil)
-                }
-            }
-
-            promise.futureResult.whenComplete { res in
-                self.channels.removeFirst()
-                switch res {
-                case .success(let response):
-                    responses.append(response)
-                    if responses.count == self.configuration.count {
-                        resultPromise.succeed(responses.summarize(host: resolvedAddress))
+        self.resolvedAddress = try SocketAddress.makeAddressResolvingHost(self.configuration.host, port: self.configuration.port)
+        return self.stateLock.withLock {
+            switch self.state {
+            case .ready:
+                self.state = .running
+                for cnt in 0..<self.configuration.count {
+                    let promise = self.eventLoopGroup.any().makePromise(of: PingResponse.self)
+                    guard let resolvedAddress = self.resolvedAddress else {
+                        self.resultPromise.fail(PingError.httpMissingHost)
+                        self.state = .error
+                        return self.resultPromise.futureResult
                     }
-                case .failure(let error):
-                    resultPromise.fail(error)
+
+                    self.connect(to: resolvedAddress, resultPromise: promise).whenComplete { result in
+                        switch result {
+                        case .success(let channel):
+                            self.channels.withLockedValue { channels in
+                                channels.append(channel)
+                            }
+
+                            channel.eventLoop.scheduleTask(in: self.configuration.readTimeout * cnt) {
+                                let request = self.configuration.makeHTTPRequest(for: UInt16(cnt))
+                                channel.write(request, promise: nil)
+                            }
+                        case .failure(let error):
+                            promise.fail(error)
+                            self.stateLock.withLockVoid {
+                                self.state = .error
+                            }
+                        }
+                    }
+
+                    promise.futureResult.whenComplete { res in
+                        self.channels.withLockedValue { channels in
+                            if !channels.isEmpty {
+                                channels.removeFirst()
+                            }
+                        }
+                        switch res {
+                        case .success(let response):
+                            self.responses.append(response)
+                            if self.responses.count == self.configuration.count {
+                                self.resultPromise.succeed(self.responses.summarize(host: resolvedAddress))
+                            }
+                        case .failure(let error):
+                            self.resultPromise.fail(error)
+                        }
+                    }
                 }
+
+                self.resultPromise.futureResult.whenComplete { result in
+                    switch result {
+                    case .success:
+                        self.stateLock.withLockVoid {
+                            self.state = .finished
+                        }
+                    case .failure:
+                        self.stateLock.withLockVoid {
+                            self.state = .error
+                        }
+                    }
+                }
+
+                return self.resultPromise.futureResult
+            default:
+                preconditionFailure("Cannot run ICMP Ping when the client is not in ready state.")
             }
         }
-
-        return resultPromise.futureResult
     }
 
     public func cancel() {
-        self.stateLock.withLock {
+        self.stateLock.withLockVoid {
             switch self.state {
-            case .ready, .running:
-                self.stateLock.withLock {
-                    self.state = .cancelled
+            case .ready:
+                self.state = .cancelled
+                self.resultPromise.fail(PingError.taskIsCancelled)
+            case .running:
+                self.state = .cancelled
+                guard let resolvedAddress = self.resolvedAddress else {
+                    self.resultPromise.fail(PingError.httpMissingHost)
+                    return
                 }
+                self.resultPromise.succeed(self.responses.summarize(host: resolvedAddress))
                 shutdown()
             case .error:
-                print("No need to cancel when ICMP Client is in error state.")
+                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in error state.")
             case .cancelled:
-                print("No need to cancel when ICMP Client is in cancelled state.")
+                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in cancelled state.")
             case .finished:
-                print("No need to cancel when test is finished.")
+                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when test is finished.")
             }
         }
     }
 
-    private func connect(to address: SocketAddress, resultPromise: EventLoopPromise<PingResponse>) -> EventLoopFuture<Channel> {
-        return makeBootstrap(address, resultPromise: resultPromise).connectTimeout(self.configuration.connectionTimeout).connect(to: address)
+    private func connect(to address: SocketAddress,
+                         resultPromise: EventLoopPromise<PingResponse>) -> EventLoopFuture<Channel> {
+        return makeBootstrap(address, resultPromise: resultPromise).connect(to: address)
     }
 
-    private func makeBootstrap(_ resolvedAddress: SocketAddress, resultPromise: EventLoopPromise<PingResponse>) -> ClientBootstrap {
+    private func makeBootstrap(_ resolvedAddress: SocketAddress,
+                               resultPromise: EventLoopPromise<PingResponse>) -> ClientBootstrap {
         return ClientBootstrap(group: self.eventLoopGroup)
             .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
+            .connectTimeout(self.configuration.connectionTimeout)
             .channelInitializer { channel in
                 if self.configuration.schema.enableTLS {
                     do {
                         let tlsConfiguration = TLSConfiguration.makeClientConfiguration()
                         let sslContext = try NIOSSLContext(configuration: tlsConfiguration)
-                        let tlsHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: self.configuration.host)
+                        let tlsHandler = try NIOSSLClientHandler(context: sslContext,
+                                                                 serverHostname: self.configuration.host)
                         try channel.pipeline.syncOperations.addHandlers(tlsHandler)
                     } catch {
                         return channel.eventLoop.makeFailedFuture(error)
@@ -107,9 +170,20 @@ public final class HTTPPingClient {
                 }
 
                 do {
-                    let handler = HTTPHandler1(useServerTiming: self.configuration.useServerTiming, promise: resultPromise)
+                    let handler = HTTPHandler1(useServerTiming: self.configuration.useServerTiming,
+                                                             promise: resultPromise)
                     try channel.pipeline.syncOperations.addHTTPClientHandlers(position: .last)
-                    try channel.pipeline.syncOperations.addHandler(HTTPDuplexer1(configuration: self.configuration, handler: handler), position: .last)
+                    try channel.pipeline.syncOperations.addHandler(
+                        HTTPDuplexer1(configuration: self.configuration, handler: handler),
+                        position: .last
+                    )
+                    guard let networkLinkConfig = self.networkLinkConfig else {
+                        preconditionFailure("Test should initialize NetworkLinkConfiguration")
+                    }
+                    try channel.pipeline.syncOperations.addHandler(
+                        TrafficControllerChannelHandler(networkLinkConfig: networkLinkConfig),
+                        position: .first
+                    )
                 } catch {
                     return channel.eventLoop.makeFailedFuture(error)
                 }
@@ -119,16 +193,13 @@ public final class HTTPPingClient {
     }
 
     private func shutdown() {
-        do {
-            self.channels.forEach { channel in
+        self.channels.withLockedValue { channels in
+            channels.forEach { channel in
                 channel.close(mode: .all).whenFailure { error in
                     logger.error("Cannot close HTTP Ping Client: \(error)")
                 }
             }
-            try self.eventLoopGroup.syncShutdownGracefully()
             print("Shutdown!")
-        } catch {
-            logger.error("Cannot shut down HTTP Ping Client gracefully: \(error)")
         }
     }
 }
@@ -156,6 +227,7 @@ extension HTTPPingClient {
 
         public var headers: [String: String]
         public var useServerTiming: Bool
+        public var useURLSession: Bool
 
         public let host: String
         public let schema: Schema
@@ -174,13 +246,21 @@ extension HTTPPingClient {
             return httpHeaders
         }
 
-        public init(url: URL, count: Int = 10, interval: TimeAmount = .seconds(1), readTimeout: TimeAmount = .seconds(1), connectionTimeout: TimeAmount = .seconds(5), headers: [String: String] = Configuration.defaultHeaders, useServerTiming: Bool = false) throws {
+        public init(url: URL,
+                    count: Int = 10,
+                    interval: TimeAmount = .seconds(1),
+                    readTimeout: TimeAmount = .seconds(1),
+                    connectionTimeout: TimeAmount = .seconds(5),
+                    headers: [String: String] = Configuration.defaultHeaders,
+                    useServerTiming: Bool = false,
+                    useURLSession: Bool = false) throws {
             self.url = url
             self.count = count
             self.readTimeout = readTimeout
             self.connectionTimeout = connectionTimeout
             self.headers = headers
             self.useServerTiming = useServerTiming
+            self.useURLSession = useURLSession
 
             guard let _host = url.host, !_host.isEmpty else {
                 throw PingError.httpMissingHost
@@ -199,12 +279,25 @@ extension HTTPPingClient {
             port = url.port ?? schema.defaultPort
         }
 
-        public init(url: String, count: Int = 10, interval: TimeAmount = .seconds(1), readTimeout: TimeAmount = .seconds(1), connectionTimeout: TimeAmount = .seconds(5), headers: [String: String] = Configuration.defaultHeaders, useServerTiming: Bool = false) throws {
+        public init(url: String,
+                    count: Int = 10,
+                    interval: TimeAmount = .seconds(1),
+                    readTimeout: TimeAmount = .seconds(1),
+                    connectionTimeout: TimeAmount = .seconds(5),
+                    headers: [String: String] = Configuration.defaultHeaders,
+                    useServerTiming: Bool = false) throws {
             guard let urlObj = URL(string: url) else {
                 throw PingError.invalidURL
             }
 
-            try self.init(url: urlObj, count: count, interval: interval, readTimeout: readTimeout, connectionTimeout: connectionTimeout, headers: headers, useServerTiming: useServerTiming)
+            try self.init(url: urlObj,
+                          count: count,
+                          interval: interval,
+                          readTimeout: readTimeout,
+                          connectionTimeout: connectionTimeout,
+                          headers: headers,
+                          useServerTiming: useServerTiming
+                        )
         }
 
         public init(url: String) throws {

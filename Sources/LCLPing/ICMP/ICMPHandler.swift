@@ -152,19 +152,20 @@ final class ICMPHandler: PingHandler {
         let sequenceNum = response.sequenceNum
         let identifier = response.idenifier
 
-        print("[ICMPDuplexer][\(#function)]: received icmp response with type: \(type), code: \(code), sequence number: \(sequenceNum), identifier: \(identifier)")
+        logger.debug("[[\(#fileID)][\(#line)][\(#function)]: received icmp response with type: \(type), code: \(code), sequence number: \(sequenceNum), identifier: \(identifier)")
 
         let currentTimestamp = Date.currentTimestamp
 
         guard let icmpRequest = self.seqToRequest[sequenceNum] else {
-            logger.error("[ICMPDuplexer][\(#function)]: Unable to find matching request with sequence number \(sequenceNum)")
+            logger.error("[\(#fileID)][\(#line)][\(#function)]: Unable to find matching request with sequence number \(sequenceNum)")
             self.handleError(error: PingError.invalidICMPResponse)
             return
         }
 
         if self.responseSeqNumSet.contains(sequenceNum) {
-            let pingResponse: PingResponse = self.seqToResponse[sequenceNum] == nil ? .timeout(sequenceNum) : .duplicated(sequenceNum)
-            print("[ICMPDuplexer][\(#function)]: response for #\(sequenceNum) is \(self.seqToResponse[sequenceNum] == nil ? "timeout" : "duplicate")")
+            let pingResponse: PingResponse = self.seqToResponse[sequenceNum] ==
+                                                nil ? .timeout(sequenceNum) : .duplicated(sequenceNum)
+            logger.debug("[\(#fileID)][\(#line)][\(#function)]:: response for #\(sequenceNum) is \(self.seqToResponse[sequenceNum] == nil ? "timeout" : "duplicate")")
             result.append(pingResponse)
             shouldCloseHandler()
             return
@@ -285,7 +286,10 @@ final class ICMPHandler: PingHandler {
             shouldCloseHandler()
             return
         default:
-            self.result.append(.error(sequenceNum, PingError.unknownError("Received unknown ICMP type (\(type)) and ICMP code (\(code))")))
+            self.result.append(.error(
+                                sequenceNum,
+                                PingError.unknownError("Received unknown ICMP type (\(type)) and ICMP code (\(code))"))
+                            )
             shouldCloseHandler()
             return
         }
@@ -340,8 +344,8 @@ final class ICMPHandler: PingHandler {
     }
 
     func shouldCloseHandler(shouldForceClose: Bool = false) {
-        print("responseSeqNumSet.count = \(responseSeqNumSet.count) && seqToResponse.count = \(seqToResponse.count)")
         if self.responseSeqNumSet.count == self.totalCount || shouldForceClose {
+            logger.debug("[\(#fileID)][\(#line)][\(#function)]: should close icmp handler")
             self.icmpPingPromise.succeed(self.result)
         }
     }

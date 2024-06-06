@@ -16,7 +16,7 @@ import Logging
 /// Estimated server timing if no data is present
 let estimatedServerTiming: Double = 15
 
-let LOGGER_LABEL = "com.lcl.lclping"
+let LOGGER_LABEL = "org.seattlecommunitynetwork.lclping"
 var logger: Logger {
     get {
         var logger = Logger(label: LOGGER_LABEL)

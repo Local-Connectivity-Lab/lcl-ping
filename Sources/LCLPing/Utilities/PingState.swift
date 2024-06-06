@@ -13,7 +13,7 @@
 import Foundation
 
 /// Possible states of an instance of LCLPing
-public enum PingState: Equatable {
+enum PingState: Equatable {
 
     /// LCLPing is ready to initiate ping requests
     case ready

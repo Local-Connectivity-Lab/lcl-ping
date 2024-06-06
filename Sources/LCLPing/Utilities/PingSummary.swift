@@ -42,5 +42,20 @@ extension PingSummary {
 }
 
 extension PingSummary {
-    static let empty: PingSummary = .init(min: .zero, max: .zero, avg: .zero, median: .zero, stdDev: .zero, jitter: .zero, details: [], totalCount: .zero, timeout: .init(), duplicates: .init(), errors: .init(), ipAddress: "", port: 0, protocol: 0)
+    static let empty = PingSummary(
+        min: .zero,
+        max: .zero,
+        avg: .zero,
+        median: .zero,
+        stdDev: .zero,
+        jitter: .zero,
+        details: [],
+        totalCount: .zero,
+        timeout: .init(),
+        duplicates: .init(),
+        errors: .init(),
+        ipAddress: "",
+        port: 0,
+        protocol: 0
+    )
 }

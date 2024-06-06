@@ -14,200 +14,126 @@ import XCTest
 import NIOCore
 @testable import LCLPing
 
-#if INTEGRATION_TEST && (os(macOS) || os(iOS) || os(watchOS) || os(tvOS) || swift(>=5.7))
+//#if INTEGRATION_TEST
 final class ICMPIntegrationTests: XCTestCase {
 
     private func runTest(
         networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected,
         rewriteHeader: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject]? = nil,
-        pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0))
-    ) async throws -> (PingState, PingSummary?) {
-        var icmpPing = ICMPPing(networkLinkConfig: networkLinkConfig, rewriteHeaders: rewriteHeader)
-        try await icmpPing.start(with: pingConfig)
-        return (icmpPing.pingStatus, icmpPing.summary)
+        pingConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0))
+    ) throws -> PingSummary {
+        let icmp = ICMPPingClient(networkLinkConfig: networkLinkConfig, rewriteHeaders: rewriteHeader, configuration: pingConfig)
+        return try icmp.start().wait()
     }
 
-    func testFullyConnectedNetwork() async throws {
-        let (pingStatus, pingSummary) = try await runTest()
-        switch pingStatus {
-        case .finished:
-            XCTAssertEqual(pingSummary?.totalCount, 10)
-            XCTAssertEqual(pingSummary?.details.isEmpty, false)
-            XCTAssertEqual(pingSummary?.duplicates.count, 0)
-            XCTAssertEqual(pingSummary?.timeout.count, 0)
-            for i in 0..<10 {
-                XCTAssertEqual(pingSummary?.details[i].seqNum, UInt16(i))
-            }
-        default:
-            XCTFail("ICMP Test failed with status \(pingStatus)")
+    func testFullyConnectedNetwork() throws {
+        let pingSummary = try runTest()
+        XCTAssertEqual(pingSummary.totalCount, 10)
+        XCTAssertEqual(pingSummary.details.isEmpty, false)
+        XCTAssertEqual(pingSummary.duplicates.count, 0)
+        XCTAssertEqual(pingSummary.timeout.count, 0)
+        for i in 0..<10 {
+            XCTAssertEqual(pingSummary.details[i].seqNum, UInt16(i))
         }
     }
 
-    func testFullyDisconnectedNetwork() async throws {
-        let fullyDisconnected = TrafficControllerChannelHandler.NetworkLinkConfiguration.fullyDisconnected
-        let (pingStatus, pingSummary) = try await runTest(networkLinkConfig: fullyDisconnected)
-        switch pingStatus {
-        case .finished:
-            for i in 0..<10 {
-                XCTAssertEqual(pingSummary?.timeout.contains(UInt16(i)), true)
-            }
-            XCTAssertEqual(pingSummary?.totalCount, 10)
-            XCTAssertEqual(pingSummary?.details.isEmpty, true)
-            XCTAssertEqual(pingSummary?.duplicates.count, 0)
-            XCTAssertEqual(pingSummary?.timeout.count, 10)
-        default:
-            XCTFail("ICMP Test failed with status \(pingStatus)")
+    func testFullyDisconnectedNetwork() throws {
+        let pingSummary = try runTest(networkLinkConfig: .fullyDisconnected)
+        for i in 0..<10 {
+            XCTAssertEqual(pingSummary.timeout.contains(UInt16(i)), true)
         }
+        XCTAssertEqual(pingSummary.totalCount, 10)
+        XCTAssertEqual(pingSummary.details.isEmpty, true)
+        XCTAssertEqual(pingSummary.duplicates.count, 0)
+        XCTAssertEqual(pingSummary.timeout.count, 10)
     }
 
-    func testUnknownHost() async throws {
-        let pingConfig = LCLPing.PingConfiguration(type: .icmp, endpoint: .ipv4("10.10.10.127", 0), count: 10)
-        let (pingStatus, pingSummary) = try await runTest(pingConfig: pingConfig)
-        switch pingStatus {
-        case .finished:
-            XCTAssertEqual(pingSummary?.timeout.count, 10)
-        default:
-            XCTFail("ICMP Test failed with status \(pingStatus)")
-        }
+    func testUnknownHost() throws {
+        let newConfig = ICMPPingClient.Configuration(endpoint: .ipv4("10.10.10.127", 0), count: 10)
+        let pingSummary = try runTest(pingConfig: newConfig)
+        XCTAssertEqual(pingSummary.timeout.count, 10)
     }
 
-    func testMinorInOutPacketDrop() async throws {
+    func testMinorInOutPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.1, outPacketLoss: 0.1)
-        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
-        switch pingStatus {
-        case .finished:
-            ()
-        default:
-            XCTFail("ICMP Test failed with status \(pingStatus)")
-        }
+        let _ = try runTest(networkLinkConfig: networkLink)
     }
 
-    func testMediumInOutPacketDrop() async throws {
+    func testMediumInOutPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.4, outPacketLoss: 0.4)
-        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
-        switch pingStatus {
-        case .finished:
-            ()
-        default:
-            XCTFail("ICMP Test failed with status \(pingStatus)")
-        }
+        let _ = try runTest(networkLinkConfig: networkLink)
     }
 
-    func testMinorInPacketDrop() async throws {
+    func testMinorInPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.2)
-        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
-        switch pingStatus {
-        case .finished:
-            ()
-        default:
-            XCTFail("ICMP Test failed with status \(pingStatus)")
-        }
+        let _ = try runTest(networkLinkConfig: networkLink)
     }
 
-    func testMinorOutPacketDrop() async throws {
+    func testMinorOutPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(outPacketLoss: 0.2)
-        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
-        switch pingStatus {
-        case .finished:
-            ()
-        default:
-            XCTFail("ICMP Test failed with status \(pingStatus)")
-        }
+        let _ = try runTest(networkLinkConfig: networkLink)
     }
 
-    func testMediumInPacketDrop() async throws {
+    func testMediumInPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.5)
-        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
-        switch pingStatus {
-        case .finished:
-            ()
-        default:
-            XCTFail("ICMP Test failed with status \(pingStatus)")
-        }
+        let _ = try runTest(networkLinkConfig: networkLink)
     }
 
-    func testMediumOutPacketDrop() async throws {
+    func testMediumOutPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(outPacketLoss: 0.5)
-        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
-        switch pingStatus {
-        case .finished:
-            ()
-        default:
-            XCTFail("ICMP Test failed with status \(pingStatus)")
-        }
+        let _ = try runTest(networkLinkConfig: networkLink)
     }
 
-    func testFullyDuplicatedNetwork() async throws {
-        let fullyDuplicated = TrafficControllerChannelHandler.NetworkLinkConfiguration.fullyDuplicated
-        let (pingStatus, pingSummary) = try await runTest(networkLinkConfig: fullyDuplicated)
-        switch pingStatus {
-        case .finished:
-            XCTAssertEqual(pingSummary?.duplicates.count, 9) // before the last duplicate is sent, the channel is already closed.
-        default:
-            XCTFail("ICMP Test failed with status \(pingStatus)")
-        }
+    func testFullyDuplicatedNetwork() throws {
+        let pingSummary = try runTest(networkLinkConfig: .fullyDuplicated)
+        XCTAssertEqual(pingSummary.duplicates.count, 9) // FIXME: before the last duplicate is sent, the channel is already closed.
     }
 
-    func testDuplicatedNetwork() async throws {
+    func testDuplicatedNetwork() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration.init(inDuplicate: 0.5)
-        let (pingStatus, pingSummary) = try await runTest(networkLinkConfig: networkLink)
-        switch pingStatus {
-            case .finished:
-                XCTAssertEqual(pingSummary?.duplicates.isEmpty, false)
-            default:
-                XCTFail("ICMP Test failed with status \(pingStatus)")
-        }
+        let pingSummary = try runTest(networkLinkConfig: networkLink)
+        XCTAssertEqual(pingSummary.duplicates.isEmpty, false)
     }
 
-    func testInvalidIpHeader() async throws {
+    func testInvalidIpHeader() throws {
         #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
         let addressedEnvelopRewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject] = [
             \AddressedEnvelope.data: [RewriteData(index: 0, byte: 0x55)] as AnyObject
         ]
-
-        let pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 1)
-
+        let newConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 1)
         let expectedError = PingError.invalidIPVersion
         do {
-            let (pingState, pingSummary) = try await runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
-            XCTAssertEqual(pingState, .finished)
-            XCTAssertNotNil(pingSummary)
-            XCTAssertEqual(pingSummary!.totalCount, 1)
-            XCTAssertEqual(pingSummary!.errors, [PingSummary.PingErrorSummary(seqNum: nil, reason: expectedError.localizedDescription)])
-
+            let _ = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: newConfig)
+            XCTFail("Should receive invalid IP protocol error")
         } catch {
-            XCTFail("Should not throw \(error)")
+            XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
         }
         #else
         XCTSkip("Skipped on Linux Platform")
         #endif
     }
 
-    func testInvalidIPProtocol() async throws {
+    func testInvalidIPProtocol() throws {
         #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
         let addressedEnvelopRewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject] = [
             \AddressedEnvelope.data: [RewriteData(index: 9, byte: 0x02)] as AnyObject
         ]
 
-        let pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 1)
-
+        let newConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 1)
         let expectedError = PingError.invalidIPProtocol
         do {
-            let (pingState, pingSummary) = try await runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
-            XCTAssertEqual(pingState, .finished)
-            XCTAssertNotNil(pingSummary)
-            XCTAssertEqual(pingSummary!.totalCount, 1)
-            XCTAssertEqual(pingSummary!.errors, [PingSummary.PingErrorSummary(seqNum: nil, reason: expectedError.localizedDescription)])
-
+            let _ = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: newConfig)
+            XCTFail("Should receive invalid IP protocol error")
         } catch {
-            XCTFail("Should not throw \(error)")
+            XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
         }
+        
         #else
         XCTSkip("Skipped on Linux Platform")
         #endif
     }
 
-    func testInvalidICMPTypeAndCode() async throws {
+    func testInvalidICMPTypeAndCode() throws {
         #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
         let testParams: [(Int8, Int8, PingError)] = [
             (0x3, 0x0, PingError.icmpDestinationNetworkUnreachable),
@@ -246,16 +172,13 @@ final class ICMPIntegrationTests: XCTestCase {
                 \AddressedEnvelope.data: [RewriteData(index: 20, byte: type), RewriteData(index: 21, byte: code)] as AnyObject
             ]
 
-            let pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 1)
+            let pingConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 1)
             do {
-                let (pingState, pingSummary) = try await runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
-                XCTAssertEqual(pingState, .finished)
-                XCTAssertNotNil(pingSummary)
-                XCTAssertEqual(pingSummary!.totalCount, 1)
-                XCTAssertEqual(pingSummary!.errors, [PingSummary.PingErrorSummary(seqNum: 0, reason: expectedError.localizedDescription)])
-
+                let pingSummary = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
+                XCTAssertEqual(pingSummary.totalCount, 1)
+                XCTAssertEqual(pingSummary.errors, [PingSummary.ErrorSummary(seqNum: 0, reason: expectedError.localizedDescription)])
             } catch {
-                XCTFail("Should not throw \(error)")
+                XCTFail("Should not throw error: \(error)")
             }
         }
         #else
@@ -269,19 +192,14 @@ final class ICMPIntegrationTests: XCTestCase {
             \AddressedEnvelope.data: [RewriteData(index: 27, byte: 0x02)] as AnyObject
         ]
 
-        let pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 1)
+        let pingConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 1)
 
         let expectedError = PingError.invalidICMPResponse
         do {
-            let (pingState, pingSummary) = try await runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
-            XCTAssertEqual(pingState, .finished)
-            XCTAssertNotNil(pingSummary)
-            XCTAssertEqual(pingSummary!.totalCount, 2) // since sequence number is invalid, no match request can be found in the history. Thus there will be two error reported
-            XCTAssertEqual(pingSummary!.errors, [PingSummary.PingErrorSummary(seqNum: 512, reason: expectedError.localizedDescription)]) // os will convert from big endian to little endian (0x002 -> 0x200)
-            XCTAssertEqual(pingSummary!.timeout, Set([UInt16(0)]))
-
+            let _ = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
+            XCTFail("Should receive invalid \(expectedError.localizedDescription)")
         } catch {
-            XCTFail("Should not throw \(error)")
+            XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
         }
         #else
         XCTSkip("Skipped on Linux Platform")
@@ -294,16 +212,13 @@ final class ICMPIntegrationTests: XCTestCase {
             \AddressedEnvelope.data: [RewriteData(index: 22, byte: 0x56)] as AnyObject
         ]
 
-        let pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 1)
+        let pingConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 1)
 
         let expectedError = PingError.invalidICMPChecksum
         do {
-            let (pingState, pingSummary) = try await runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
-            XCTAssertEqual(pingState, .finished)
-            XCTAssertNotNil(pingSummary)
-            XCTAssertEqual(pingSummary!.totalCount, 1)
-            XCTAssertEqual(pingSummary!.errors, [PingSummary.PingErrorSummary(seqNum: 0, reason: expectedError.localizedDescription)])
-
+            let pingSummary = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
+            XCTAssertEqual(pingSummary.totalCount, 1)
+            XCTAssertEqual(pingSummary.errors, [PingSummary.ErrorSummary(seqNum: 0, reason: expectedError.localizedDescription)])
         } catch {
             XCTFail("Should not throw \(error)")
         }
@@ -312,78 +227,39 @@ final class ICMPIntegrationTests: XCTestCase {
         #endif
     }
 
-    func testCancelBeforeTestStarts() async throws {
-        let networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected
-        let pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 3)
-        switch pingConfig.type {
-        case .icmp:
-            var icmpPing = ICMPPing(networkLinkConfig: networkLinkConfig, rewriteHeaders: nil)
-            icmpPing.stop()
-            try await icmpPing.start(with: pingConfig)
-            switch icmpPing.pingStatus {
-            case .cancelled:
-                XCTAssertNil(icmpPing.summary)
-            default:
-                XCTFail("Invalid ICMP Ping state. Should be .cancelled, but is \(icmpPing.pingStatus)")
-            }
-        default:
-            XCTFail("Invalid PingConfig. Need HTTP, but received \(pingConfig.type)")
-        }
+    func testCancelBeforeTestStarts() throws {
+        let pingConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 3)
+        let icmp = ICMPPingClient(networkLinkConfig: .fullyConnected, rewriteHeaders: nil, configuration: pingConfig)
+        icmp.cancel()
     }
 
-    @MainActor
-    func testCancelDuringTest() async throws {
-//        throw XCTSkip("Skipped: the following test after https://github.com/apple/swift-nio/issues/2612 is fixed")
+    func testCancelDuringTest() throws {
         for waitSecond in [2, 4, 5, 6, 7, 9] {
-            let networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected
-            let pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 10)
-            switch pingConfig.type {
-            case .icmp:
-                var icmpPing = ICMPPing(networkLinkConfig: networkLinkConfig, rewriteHeaders: nil)
-
-                Task {
-                    try await Task.sleep(nanoseconds: UInt64(waitSecond) * 1_000_000_000)
-                    icmpPing.stop()
-                }
-
-                try await icmpPing.start(with: pingConfig)
-
-                switch icmpPing.pingStatus {
-                case .cancelled:
-                    XCTAssertNotNil(icmpPing.summary?.totalCount)
-                    XCTAssertLessThanOrEqual(icmpPing.summary!.totalCount, waitSecond + 1)
-                    XCTAssertEqual(icmpPing.summary?.details.isEmpty, false)
-                    XCTAssertEqual(icmpPing.summary?.duplicates.count, 0)
-                    XCTAssertEqual(icmpPing.summary?.timeout.count, 0)
-                default:
-                    XCTFail("Invalid ICMP Ping state. Should be .finished, but is \(icmpPing.pingStatus)")
-                }
-            default:
-                XCTFail("Invalid PingConfig. Need HTTP, but received \(pingConfig.type)")
+            let pingConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 11)
+            let icmpPing = ICMPPingClient(networkLinkConfig: .fullyConnected, rewriteHeaders: nil, configuration: pingConfig)
+            
+            DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(waitSecond)) {
+                print("will cancel ping")
+                icmpPing.cancel()
             }
+
+            let summary = try icmpPing.start().wait()
+            XCTAssertLessThanOrEqual(summary.totalCount, waitSecond + 1)
+            XCTAssertEqual(summary.details.isEmpty, false)
+            XCTAssertEqual(summary.duplicates.count, 0)
+            XCTAssertEqual(summary.timeout.count, 0)
         }
     }
 
-    func testCancelAfterTestFinishes() async throws {
-        let networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected
-        let pingConfig: LCLPing.PingConfiguration = .init(type: .icmp, endpoint: .ipv4("127.0.0.1", 0), count: 3)
-        switch pingConfig.type {
-        case .icmp:
-            var icmpPing = ICMPPing(networkLinkConfig: networkLinkConfig, rewriteHeaders: nil)
-            try await icmpPing.start(with: pingConfig)
-            icmpPing.stop()
-            switch icmpPing.pingStatus {
-            case .finished:
-                XCTAssertEqual(icmpPing.summary?.totalCount, 3)
-                XCTAssertEqual(icmpPing.summary?.details.isEmpty, false)
-                XCTAssertEqual(icmpPing.summary?.duplicates.count, 0)
-                XCTAssertEqual(icmpPing.summary?.timeout.count, 0)
-            default:
-                XCTFail("Invalid ICMP Ping state. Should be .finished, but is \(icmpPing.pingStatus)")
-            }
-        default:
-            XCTFail("Invalid PingConfig. Need HTTP, but received \(pingConfig.type)")
-        }
+    func testCancelAfterTestFinishes() throws {
+        let pingConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 3)
+        let icmpPing = ICMPPingClient(networkLinkConfig: .fullyConnected, rewriteHeaders: nil, configuration: pingConfig)
+        let summary = try icmpPing.start().wait()
+        icmpPing.cancel()
+        XCTAssertEqual(summary.totalCount, 3)
+        XCTAssertEqual(summary.details.isEmpty, false)
+        XCTAssertEqual(summary.duplicates.count, 0)
+        XCTAssertEqual(summary.timeout.count, 0)
     }
 }
-#endif
+//#endif

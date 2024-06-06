@@ -36,7 +36,8 @@ final class HTTPHandler1: PingHandler {
                 switch statusCode {
                 case 200...299:
                     if self.useServerTiming {
-                        self.latency.serverTiming = head.headers.contains(name: "Server-Timing") ? matchServerTiming(field: head.headers.first(name: "Server-Timing")!) : estimatedServerTiming
+                        self.latency.serverTiming = head.headers.contains(name: "Server-Timing")
+                        ? matchServerTiming(field: head.headers.first(name: "Server-Timing")!) : estimatedServerTiming
                     }
                 default:
                     print("received invalid response code: \(statusCode)")
@@ -45,23 +46,25 @@ final class HTTPHandler1: PingHandler {
             case .body:
                 break
             case .end:
-                print("we finish waiting all http response")
+                logger.debug("[\(#fileID)][\(#line)][\(#function)]: we finish waiting all http response")
                 self.latency.state = .finished
-                print("status is \(self.latency.state)")
                 self.latency.responseEnd = Date.currentTimestamp
                 shouldCloseHandler()
             }
         case .error:
             switch response {
+            case .body:
+                break
             case .end:
                 self.latency.responseEnd = Date.currentTimestamp
                 shouldCloseHandler()
             default:
-                print("Invalid state: \(self.latency.state)")
+                logger.error("[\(#fileID)][\(#line)][\(#function)]: Invalid HTTP handler state: \(self.latency.state)")
+                logger.error("[\(#fileID)][\(#line)][\(#function)]: current response type: \(response)")
                 self.promise.fail(PingError.httpInvalidHandlerState)
             }
         default:
-            print("Invalid state: \(self.latency.state)")
+            logger.error("[\(#fileID)][\(#line)][\(#function)]: Invalid state: \(self.latency.state)")
             self.promise.fail(PingError.httpInvalidHandlerState)
         }
     }
@@ -114,7 +117,6 @@ final class HTTPHandler1: PingHandler {
     private func makePingResponse() -> PingResponse {
         switch self.latency.state {
         case .finished:
-            print(latency)
             let result = (self.latency.responseEnd - self.latency.requestStart) * 1000.0 - self.latency.serverTiming
             return .ok(self.latency.seqNum, result, Date.currentTimestamp)
         case .timeout:

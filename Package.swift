@@ -47,10 +47,6 @@ let package = Package(
             dependencies: ["LCLPing"]
         ),
         .testTarget(
-            name: "TimerTests",
-            dependencies: ["LCLPing"]
-        ),
-        .testTarget(
             name: "ModelTests",
             dependencies: ["LCLPing"]
         ),

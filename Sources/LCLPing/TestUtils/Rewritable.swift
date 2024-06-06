@@ -18,8 +18,11 @@ protocol Rewritable {
 }
 
 extension ICMPPingClient.ICMPRequestPayload: Rewritable {
-    func rewrite(newValues: [PartialKeyPath<ICMPPingClient.ICMPRequestPayload>: AnyObject]) -> ICMPPingClient.ICMPRequestPayload {
-        return ICMPPingClient.ICMPRequestPayload(timestamp: newValues[\.timestamp] as? TimeInterval ?? self.timestamp, identifier: newValues[\.identifier] as? UInt16 ?? self.identifier)
+    func rewrite(newValues: [PartialKeyPath<ICMPPingClient.ICMPRequestPayload>: AnyObject])
+     -> ICMPPingClient.ICMPRequestPayload {
+        return ICMPPingClient.ICMPRequestPayload(timestamp: newValues[\.timestamp] as? TimeInterval ?? self.timestamp,
+                                                 identifier: newValues[\.identifier] as? UInt16 ?? self.identifier
+                                                )
     }
 }
 
@@ -49,13 +52,16 @@ extension ICMPPingClient.ICMPHeader: Rewritable {
             sequenceNum: newValues[\.sequenceNum] as? UInt16 ?? self.sequenceNum
         )
 
-        newHeader.payload = self.payload.rewrite(newValues: newValues[\.payload] as! [PartialKeyPath<ICMPPingClient.ICMPRequestPayload>: AnyObject])
+        newHeader.payload = self.payload.rewrite(
+            newValues: newValues[\.payload] as! [PartialKeyPath<ICMPPingClient.ICMPRequestPayload>: AnyObject]
+        )
         return newHeader
     }
 }
 
 extension AddressedEnvelope: Rewritable where DataType == ByteBuffer {
-    func rewrite(newValues: [PartialKeyPath<NIOCore.AddressedEnvelope<DataType>>: AnyObject]) -> NIOCore.AddressedEnvelope<DataType> {
+    func rewrite(newValues: [PartialKeyPath<NIOCore.AddressedEnvelope<DataType>>: AnyObject])
+        -> NIOCore.AddressedEnvelope<DataType> {
         return AddressedEnvelope(
             remoteAddress: newValues[\.remoteAddress] as? SocketAddress ?? self.remoteAddress,
             data: data.rewrite(newValues: newValues[\AddressedEnvelope.data] as? [RewriteData] ?? [])
@@ -74,7 +80,7 @@ extension ByteBuffer {
         for newValue in newValues {
             newBuffer.setBytes(newValue.byte.data, at: newValue.index)
         }
-        logger.debug("ByteBuffer Rewrite: rewritten as \(newBuffer.readableBytesView)")
+        logger.debug("[ByteBuffer Rewrite]: rewritten as \(newBuffer.readableBytesView)")
         return newBuffer
     }
 }

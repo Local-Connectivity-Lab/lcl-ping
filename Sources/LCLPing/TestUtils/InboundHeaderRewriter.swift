@@ -46,10 +46,9 @@ class InboundHeaderRewriter<In: Rewritable>: ChannelInboundHandler {
         case .operational:
             break
         case .error:
-            logger.error("[\(#function)]: in an incorrect state: \(self.state)")
-            assertionFailure("[\(#function)]: in an incorrect state: \(self.state)")
+            assertionFailure("[\(#fileID)][\(#line)][\(#function)]: in an incorrect state: \(self.state)")
         case .inactive:
-            logger.debug("[\(#function)]: Channel active")
+            logger.debug("[\(#fileID)][\(#line)][\(#function)]: Channel active")
             context.fireChannelActive()
             self.state = .operational
         }
@@ -58,20 +57,19 @@ class InboundHeaderRewriter<In: Rewritable>: ChannelInboundHandler {
     func channelInactive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
-            logger.debug("[\(#function)]: Channel inactive")
+            logger.debug("[InboundHeaderRewriter][\(#fileID)][\(#line)][\(#function)]: Channel inactive")
             context.fireChannelInactive()
             self.state = .inactive
         case .error:
             break
         case .inactive:
-            logger.error("[\(#function)]: received inactive signal when channel is already in inactive state.")
-            assertionFailure("[\(#function)]: received inactive signal when channel is already in inactive state.")
+            assertionFailure("[\(#fileID)][\(#line)][\(#function)]: received inactive signal when channel is already in inactive state.")
         }
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         guard self.state.isOperational else {
-            logger.debug("[\(#function)]: drop data: \(data) because channel is not in operational state")
+            logger.debug("[\(#fileID)][\(#line)][\(#function)]: drop data: \(data) because channel is not in operational state")
             return
         }
 

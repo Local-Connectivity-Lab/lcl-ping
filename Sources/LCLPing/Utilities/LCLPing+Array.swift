@@ -56,6 +56,12 @@ extension Array where Element == PingResult {
 }
 
 extension Array where Element == PingResponse {
+
+    /// Summarize all ping responses after measuring the reachability from the given host.
+    /// - Parameters:
+    ///     - pingResponses: a list of `PingResponse` generated from the test
+    ///     - host: the target host where the ping test is issued
+    /// - Returns: a summary of ping test (`PingSummary`).
     func summarize(host: SocketAddress) -> PingSummary {
         var localMin: Double = .greatestFiniteMagnitude
         var localMax: Double = .zero

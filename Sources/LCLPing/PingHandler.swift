@@ -10,7 +10,7 @@ import Foundation
 public protocol PingHandler {
     associatedtype Request
     associatedtype Response
-    
+
     func handleRead(response: Response)
     func handleWrite(request: Request)
     func handleTimeout(sequenceNumber: UInt16)

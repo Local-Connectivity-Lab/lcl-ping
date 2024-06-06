@@ -28,17 +28,11 @@ protocol Pingable {
 
     /// Start the ping test with the given pingConfiguration asynchronously. Outstanding tests will be cancelled
     /// if error occurs during the test. 
-    mutating func start(with pingConfiguration: LCLPing.PingConfiguration) async throws
+    func start() throws
 
     // TODO: need to handle fallback of start(callback)
 
     /// Stop the ping test. `pingStatus` will be set to `stopped` after calling this function. 
     /// The test result will be ready after calling this function.
-    mutating func stop()
-
-    /// Retrieve the test result. The summary may be nil if some error occurs in the middle of the test.
-    var summary: PingSummary? { get }
-
-    /// The status of the ping test. See `PingState` for more details.
-    var pingStatus: PingState { get }
+    func cancel()
 }
