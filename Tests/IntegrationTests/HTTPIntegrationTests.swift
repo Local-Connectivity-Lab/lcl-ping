@@ -14,7 +14,7 @@ import XCTest
 import NIOCore
 @testable import LCLPing
 
-// #if INTEGRATION_TEST && swift(>=5.9)
+ #if INTEGRATION_TEST
 final class HTTPIntegrationTests: XCTestCase {
 
     private let endpoint: String = "http://127.0.0.1:8080"
@@ -205,4 +205,4 @@ final class HTTPIntegrationTests: XCTestCase {
         _ = try runTest(networkLinkConfig: networkLink, pingConfig: pingConfig)
     }
 }
-// #endif
+ #endif

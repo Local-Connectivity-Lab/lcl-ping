@@ -15,7 +15,7 @@ import NIOCore
 import NIO
 import NIOConcurrencyHelpers
 
-public final class ICMPPingClient {
+public final class ICMPPingClient: Pingable {
 
     private let eventLoopGroup: EventLoopGroup
     private var state: PingState
@@ -26,10 +26,10 @@ public final class ICMPPingClient {
 
     private let stateLock = NIOLock()
 
-//    #if INTEGRATION_TEST
+    #if INTEGRATION_TEST
     private var networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration?
     private var rewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject]?
-//    #endif
+    #endif
 
     public init(eventLoopGroup: EventLoopGroup = MultiThreadedEventLoopGroup.singleton, configuration: Configuration) {
         self.eventLoopGroup = eventLoopGroup
@@ -39,7 +39,7 @@ public final class ICMPPingClient {
         self.handler = ICMPHandler(totalCount: self.configuration.count, promise: promise)
     }
 
-//    #if INTEGRATION_TEST
+    #if INTEGRATION_TEST
     convenience init(networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration,
                      rewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject]?,
                      configuration: Configuration) {
@@ -47,10 +47,9 @@ public final class ICMPPingClient {
         self.networkLinkConfig = networkLinkConfig
         self.rewriteHeaders = rewriteHeaders
     }
-//    #endif
+    #endif
 
     deinit {
-        print("ICMPPingClient deinit called")
         self.shutdown()
     }
 
@@ -127,7 +126,7 @@ public final class ICMPPingClient {
         return DatagramBootstrap(group: self.eventLoopGroup)
             .protocolSubtype(.init(.icmp))
             .channelInitializer { channel in
-//                #if INTEGRATION_TEST
+                #if INTEGRATION_TEST
                 guard let networkLinkConfig = self.networkLinkConfig else {
                     preconditionFailure("Test should initialize NetworkLinkConfiguration")
                 }
@@ -138,13 +137,13 @@ public final class ICMPPingClient {
                     ICMPDecoder(),
                     ICMPDuplexer(resolvedAddress: resolvedAddress, handler: self.handler)
                 ]
-//                #else
-//                let handlers: [ChannelHandler] = [
-//                    IPDecoder(),
-//                    ICMPDecoder(),
-//                    ICMPDuplexer(resolvedAddress: resolvedAddress, handler: self.handler)
-//                ]
-//                #endif
+                #else
+                let handlers: [ChannelHandler] = [
+                    IPDecoder(),
+                    ICMPDecoder(),
+                    ICMPDuplexer(resolvedAddress: resolvedAddress, handler: self.handler)
+                ]
+                #endif
                 do {
                     try channel.pipeline.syncOperations.addHandlers(handlers)
                 } catch {

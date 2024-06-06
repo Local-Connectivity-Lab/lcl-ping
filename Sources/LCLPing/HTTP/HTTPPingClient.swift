@@ -17,7 +17,8 @@ import NIOHTTP1
 import NIOSSL
 import NIOConcurrencyHelpers
 
-public final class HTTPPingClient {
+public final class HTTPPingClient: Pingable {
+
     private let eventLoopGroup: EventLoopGroup
     private var state: PingState
     private let configuration: Configuration
@@ -28,7 +29,9 @@ public final class HTTPPingClient {
 
     private let stateLock = NIOLock()
 
+    #if INTEGRATION_TEST
     private var networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration?
+    #endif
 
     public init(eventLoopGroup: EventLoopGroup = MultiThreadedEventLoopGroup.singletonMultiThreadedEventLoopGroup,
                 configuration: Configuration) {
@@ -40,12 +43,13 @@ public final class HTTPPingClient {
         self.responses = [PingResponse]()
     }
 
-    // TODO: should add compile flag
+    #if INTEGRATION_TEST
     convenience init(configuration: Configuration,
                      networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration) {
         self.init(configuration: configuration)
         self.networkLinkConfig = networkLinkConfig
     }
+    #endif
 
     deinit {
         self.shutdown()
@@ -174,9 +178,11 @@ public final class HTTPPingClient {
                                                              promise: resultPromise)
                     try channel.pipeline.syncOperations.addHTTPClientHandlers(position: .last)
                     try channel.pipeline.syncOperations.addHandler(
-                        HTTPDuplexer1(configuration: self.configuration, handler: handler),
+                        HTTPTracingHandler(configuration: self.configuration, handler: handler),
                         position: .last
                     )
+
+                    #if INTEGRATION_TEST
                     guard let networkLinkConfig = self.networkLinkConfig else {
                         preconditionFailure("Test should initialize NetworkLinkConfiguration")
                     }
@@ -184,6 +190,7 @@ public final class HTTPPingClient {
                         TrafficControllerChannelHandler(networkLinkConfig: networkLinkConfig),
                         position: .first
                     )
+                    #endif
                 } catch {
                     return channel.eventLoop.makeFailedFuture(error)
                 }

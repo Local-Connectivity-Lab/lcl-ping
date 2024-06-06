@@ -14,7 +14,7 @@ import XCTest
 import NIOCore
 @testable import LCLPing
 
-//#if INTEGRATION_TEST
+#if INTEGRATION_TEST
 final class ICMPIntegrationTests: XCTestCase {
 
     private func runTest(
@@ -262,4 +262,4 @@ final class ICMPIntegrationTests: XCTestCase {
         XCTAssertEqual(summary.timeout.count, 0)
     }
 }
-//#endif
+#endif

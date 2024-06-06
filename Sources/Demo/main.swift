@@ -10,42 +10,29 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#if swift(>=5.9)
+
 import Foundation
 import LCLPing
 
 // create ping configuration for each run
-let pingConfig = LCLPing.PingConfiguration(type: .icmp, endpoint: .ipv4("google.com", 0))
+let icmpConfig = ICMPPingClient.Configuration(endpoint: .ipv4("127.0.0.1", 0), count: 1)
+let httpConfig = try HTTPPingClient.Configuration(url: "http://127.0.0.1:8080", count: 1)
 
-let client = ICMPPingClient(configuration: pingConfig)
-DispatchQueue.global().asyncAfter(deadline: .now() + 3) {
-    print("Cancelled after 3s")
-    client.cancel()
-}
+// initialize test client
+let icmpClient = LCLPing(pingType: .icmp(icmpConfig))
+let httpClient = LCLPing(pingType: .http(httpConfig))
+
 do {
-    let res = try client.start().wait()
-    print(res)
+    // run the test using SwiftNIO EventLoopFuture
+    let result = try icmpClient.start().wait()
+    print(result)
 } catch {
     print("received: \(error)")
 }
 
-//// create ping options
-//#if os(macOS) || os(iOS)
-//let options = LCLPing.Options(verbose: false, useNative: false)
-//#else
-//let options = LCLPing.Options(verbose: false)
-//#endif
-//
-//// initialize ping object with the options
-//var ping = LCLPing(options: options)
-//
-//try await ping.start(pingConfiguration: pingConfig)
-//switch ping.status {
-//case .error, .ready, .running:
-//    print("LCLPing is in invalid state. Abort")
-//case .stopped, .finished:
-//    print(ping.summary)
-//}
-#else
-fatalError("Requires at least Swift 5.9")
-#endif
+do {
+    let result = try httpClient.start().wait()
+    print(result)
+} catch {
+    print("received: \(error)")
+}

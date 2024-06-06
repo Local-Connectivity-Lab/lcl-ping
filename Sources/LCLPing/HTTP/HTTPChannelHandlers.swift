@@ -16,7 +16,7 @@ import NIO
 import NIOCore
 import NIOHTTP1
 
-internal final class HTTPDuplexer1: ChannelDuplexHandler {
+internal final class HTTPTracingHandler: ChannelDuplexHandler {
     typealias InboundIn = HTTPClientResponsePart
     typealias InboundOut = PingResponse
     typealias OutboundIn = HTTPPingClient.Request
@@ -51,11 +51,11 @@ internal final class HTTPDuplexer1: ChannelDuplexHandler {
     func channelActive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
-            logger.debug("[\(#fileID)][\(#line)][\(#function)] Channel already active")
+            logger.debug("[\(#fileID)][\(#line)][\(#function)]: Channel already active")
         case .error:
-            assertionFailure("[HTTPDuplexer][\(#function)] in an incorrect state: \(state)")
+            assertionFailure("[\(#fileID)][\(#line)][\(#function)]: in an incorrect state: \(state)")
         case .inactive:
-            logger.debug("[\(#fileID)][\(#line)][\(#function)] Channel active")
+            logger.debug("[\(#fileID)][\(#line)][\(#function)]: Channel active")
             self.state = .operational
         }
     }
@@ -91,7 +91,7 @@ internal final class HTTPDuplexer1: ChannelDuplexHandler {
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         guard self.state.isOperational else {
-            logger.debug("[HTTPTracingHandler][\(#function)]: drop data: \(data) because channel is not in operational state")
+            logger.debug("[\(#fileID)][\(#line)][\(#function)]: drop data: \(data) because channel is not in operational state")
             return
         }
 
@@ -104,7 +104,7 @@ internal final class HTTPDuplexer1: ChannelDuplexHandler {
 
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         guard self.state.isOperational else {
-            logger.debug("[HTTPTracingHandler]: already in error state. ignore error \(error)")
+            logger.debug("[\(#fileID)][\(#line)][\(#function)]: already in error state. ignore error \(error)")
             return
         }
         self.state = .error
