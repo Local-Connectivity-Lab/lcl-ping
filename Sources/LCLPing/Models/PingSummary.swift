@@ -34,7 +34,7 @@ public struct PingSummary: Equatable, Encodable {
     /// The variation in the delay of received packets. It is the deviation from the expected arrival time of data packets.
     public let jitter: Double
 
-    /// A array of detailed view of each ping test.
+    /// A array of detailed view of each successful ping test.
     public let details: [PingResult]
 
     /// The total number of tests conducted
