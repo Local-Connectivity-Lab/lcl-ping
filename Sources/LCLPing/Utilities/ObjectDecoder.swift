@@ -23,7 +23,7 @@ import NIOCore
 func decodeByteBuffer<Out>(of: Out.Type, data: inout ByteBuffer) throws -> Out {
     let readLength = sizeof(Out.self)
     guard let buffer = data.readBytes(length: readLength) else {
-        throw RuntimeError.insufficientBytes("Not enough bytes in the reponse message. Need \(readLength) bytes. But received \(data.readableBytes)")
+        throw PingError.insufficientBytes("Not enough bytes in the reponse message. Need \(readLength) bytes. But received \(data.readableBytes)")
     }
 
     let ret = buffer.withUnsafeBytes { $0.load(as: Out.self) }

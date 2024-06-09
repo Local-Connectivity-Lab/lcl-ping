@@ -20,15 +20,16 @@ import NIOCore
     The implementer of this protocol needs to support 
         - initiating the ping test with a ping configuration, 
         - stop the test if the test is being cancelled,
-
-    The caller needs to check the `pingStatus` first before reading the test result from `summary`.
 */
 protocol Pingable {
 
-    /// Start the ping test with the given pingConfiguration asynchronously. Outstanding tests will be cancelled
+    /// Start the ping test asynchronously. Outstanding tests will be canceled
     /// if error occurs during the test. 
+    ///
+    /// - Returns: an eventloop future, when resolved, will be the summary of the ping test.
     func start() throws -> EventLoopFuture<PingSummary>
 
-    /// Stop the ping test.
+    /// Cancel and then stop the ping test.
+    /// All outstanding tests will be canceled and results from them will be ignored
     func cancel()
 }

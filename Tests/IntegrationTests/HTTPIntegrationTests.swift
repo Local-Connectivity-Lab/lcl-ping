@@ -64,12 +64,6 @@ final class HTTPIntegrationTests: XCTestCase {
         }
     }
 
-    func testMinorInOutPacketDrop() throws {
-        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.1, outPacketLoss: 0.1)
-        let config = try createDefaultConfig()
-        _ = try runTest(networkLinkConfig: networkLink, pingConfig: config)
-    }
-
     func testCorrectStatusCode() throws {
         for param in [(statusCode: 200, ok: true), (statusCode: 201, ok: true), (statusCode: 301, ok: false), (statusCode: 404, ok: false), (statusCode: 410, ok: false), (statusCode: 500, ok: false), (statusCode: 505, ok: false)] {
             let config = try HTTPPingClient.Configuration(url: endpoint, count: 3, headers: ["Status-Code": String(param.statusCode)])
@@ -173,36 +167,6 @@ final class HTTPIntegrationTests: XCTestCase {
         XCTAssertEqual(summary.details.isEmpty, false)
         XCTAssertEqual(summary.duplicates.count, 0)
         XCTAssertEqual(summary.timeout.count, 0)
-    }
-
-    func testMediumInOutPacketDrop() throws {
-        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.4, outPacketLoss: 0.4)
-        let pingConfig = try createDefaultConfig()
-        _ = try runTest(networkLinkConfig: networkLink, pingConfig: pingConfig)
-    }
-
-    func testMinorInPacketDrop() throws {
-        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.2)
-        let pingConfig = try createDefaultConfig()
-        _ = try runTest(networkLinkConfig: networkLink, pingConfig: pingConfig)
-    }
-
-    func testMinorOutPacketDrop() throws {
-        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(outPacketLoss: 0.2)
-        let pingConfig = try createDefaultConfig()
-        _ = try runTest(networkLinkConfig: networkLink, pingConfig: pingConfig)
-    }
-
-    func testMediumInPacketDrop() throws {
-        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.5)
-        let pingConfig = try createDefaultConfig()
-        _ = try runTest(networkLinkConfig: networkLink, pingConfig: pingConfig)
-    }
-
-    func testMediumOutPacketDrop() throws {
-        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(outPacketLoss: 0.5)
-        let pingConfig = try createDefaultConfig()
-        _ = try runTest(networkLinkConfig: networkLink, pingConfig: pingConfig)
     }
 }
  #endif

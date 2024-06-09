@@ -13,8 +13,10 @@
 import Foundation
 import NIOCore
 
+/// The protocol allows the object to modify itself using the new value, partially or as a whole.
 protocol Rewritable {
-    func rewrite(newValues: [PartialKeyPath<Self>: AnyObject]) -> Self
+    associatedtype NewValue
+    func rewrite(newValues: NewValue) -> Self
 }
 
 extension ICMPPingClient.ICMPRequestPayload: Rewritable {
@@ -69,11 +71,7 @@ extension AddressedEnvelope: Rewritable where DataType == ByteBuffer {
     }
 }
 
-extension ByteBuffer {
-    func rewrite(newValues: ByteBuffer) -> NIOCore.ByteBuffer {
-        return ByteBuffer(buffer: newValues)
-    }
-
+extension ByteBuffer: Rewritable {
     func rewrite(newValues: [RewriteData]) -> ByteBuffer {
         logger.debug("[ByteBuffer Rewrite]: received new value: \(newValues)")
         var newBuffer = ByteBuffer(buffer: self)
@@ -86,13 +84,20 @@ extension ByteBuffer {
 }
 
 extension Int8 {
+
+    /// The bytes representation of the given `Int8`.
     var data: Data {
         var int = self
-        return Data(bytes: &int, count: MemoryLayout<Int8>.size)
+        return Data(bytes: &int, count: sizeof(Int8.self))
     }
 }
 
+/// Rewrite data for `NIO ByteBuffer` indicating the index and the byte that will be replaced to.
 struct RewriteData {
+
+    /// The index of the byte that will be replaced.
     let index: Int
+
+    /// The new byte that will be put at `index`.
     let byte: Int8
 }

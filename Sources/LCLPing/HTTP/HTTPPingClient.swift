@@ -17,6 +17,9 @@ import NIOHTTP1
 import NIOSSL
 import NIOConcurrencyHelpers
 
+/// The Ping client that initiates ping test via the ICMP protocol.
+/// Caller needs to provide a configuration that set the way the ICMP client initiates tests.
+/// Caller can also cancel the test via `cancel()`.
 public final class HTTPPingClient: Pingable {
 
     private let eventLoopGroup: EventLoopGroup
@@ -174,7 +177,7 @@ public final class HTTPPingClient: Pingable {
                 }
 
                 do {
-                    let handler = HTTPHandler1(useServerTiming: self.configuration.useServerTiming,
+                    let handler = HTTPHandler(useServerTiming: self.configuration.useServerTiming,
                                                              promise: resultPromise)
                     try channel.pipeline.syncOperations.addHTTPClientHandlers(position: .last)
                     try channel.pipeline.syncOperations.addHandler(
@@ -213,13 +216,21 @@ public final class HTTPPingClient: Pingable {
 
 extension HTTPPingClient {
 
+    /// The request that the HTTP Ping Client expects
+    ///
+    /// The information in this data will be used to construct the corresponding HTTP request.
     public struct Request {
+        /// The sequence number of the ICMP test. This number should be monotonically increasing.
         let sequenceNumber: UInt16
+
+        /// The request head that indicates the HTTP version, header information, and more.
         let requestHead: HTTPRequestHead
     }
 
+    /// The configuration that will be used to configure the HTTP Ping Client.
     public struct Configuration {
 
+        /// Default HTTP header
         public static let defaultHeaders: [String: String] =
             [
                 "User-Agent": "lclping",
@@ -227,19 +238,38 @@ extension HTTPPingClient {
                 "Connection": "close"
             ]
 
+        /// The URL endpoint that HTTP Ping Client will try to connect to.
         public let url: URL
+
+        /// Total number of packets sent. Default to 10 times.
         public var count: Int
+
+        /// The amount of time that the HTTP Ping Client will wait for the response from the host. Default is 1s.
         public var readTimeout: TimeAmount
+
+        /// The amount of time that the HTTP Ping Client will wait when connecting to the host. Default is 5s.
         public var connectionTimeout: TimeAmount
 
+        /// The HTTP header information for the HTTP Request
         public var headers: [String: String]
+
+        /// Indicate whether the HTTP Ping Client should take `ServerTiming` attribute
+        /// from the reponse header into consideration when measuring the latency.
         public var useServerTiming: Bool
+
+        /// Indicate whether the HTTP Ping Client should use native URLSession implementation.
         public var useURLSession: Bool
 
+        /// The host that HTTP Ping Client will connect to for the ping test.
         public let host: String
+
+        /// The schema used for the HTTP request.
         public let schema: Schema
+
+        /// The port that the HTTP Ping Client will connect to for the ping test.
         public let port: Int
 
+        /// The HTTP header that will be included in the HTTP request.
         public var httpHeaders: HTTPHeaders {
             let headerDictionary = self.headers.isEmpty ? Configuration.defaultHeaders : self.headers
             var httpHeaders = HTTPHeaders(headerDictionary.map {($0, $1)})
@@ -253,9 +283,24 @@ extension HTTPPingClient {
             return httpHeaders
         }
 
+        /// Initialize a HTTP Ping Client `Configuration`.
+        ///
+        /// - Parameters:
+        ///     - url: the URL indicating the endpoint target that the HTTP Ping Client will try to connect to.
+        ///     - count: total number of packets that will be sent.
+        ///     - readTimeout: the amount of time that the HTTP Ping Client will wait for the response from the host.
+        ///     - connectionTimeout: the amount of time that the HTTP Ping Client will wait when connecting to the host.
+        ///     - headers: the HTTP headers
+        ///     - useServerTimimg: Indicate whether the HTTP Ping Client should take `ServerTiming` attribute
+        /// from the reponse header.
+        ///     - useURLSession: Indicate whether the HTTP Ping Client should use native URLSession implementation.
+        ///
+        ///     - Throws:
+        ///         - httpMissingHost: if URL does not include any host information.
+        ///         - httpMissingSchema: if URL does not include any valid schema.
+        ///         -
         public init(url: URL,
                     count: Int = 10,
-                    interval: TimeAmount = .seconds(1),
                     readTimeout: TimeAmount = .seconds(1),
                     connectionTimeout: TimeAmount = .seconds(5),
                     headers: [String: String] = Configuration.defaultHeaders,
@@ -286,34 +331,64 @@ extension HTTPPingClient {
             port = url.port ?? schema.defaultPort
         }
 
+        /// Initialize a HTTP Ping Client `Configuration`.
+        ///
+        /// - Parameters:
+        ///     - url: the URL string indicating the endpoint target that the HTTP Ping Client will try to connect to.
+        ///     - count: total number of packets that will be sent.
+        ///     - readTimeout: the amount of time that the HTTP Ping Client will wait for the response from the host.
+        ///     - connectionTimeout: the amount of time that the HTTP Ping Client will wait when connecting to the host.
+        ///     - headers: the HTTP headers
+        ///     - useServerTimimg: Indicate whether the HTTP Ping Client should take `ServerTiming` attribute
+        /// from the reponse header.
+        ///     - useURLSession: Indicate whether the HTTP Ping Client should use native URLSession implementation.
+        ///
+        ///     - Throws:
+        ///         - httpMissingHost: if URL does not include any host information.
+        ///         - httpMissingSchema: if URL does not include any valid schema.
+        ///
         public init(url: String,
                     count: Int = 10,
-                    interval: TimeAmount = .seconds(1),
                     readTimeout: TimeAmount = .seconds(1),
                     connectionTimeout: TimeAmount = .seconds(5),
                     headers: [String: String] = Configuration.defaultHeaders,
-                    useServerTiming: Bool = false) throws {
+                    useServerTiming: Bool = false,
+                    useURLSession: Bool = false) throws {
             guard let urlObj = URL(string: url) else {
-                throw PingError.invalidURL
+                throw PingError.invalidURL(url)
             }
 
             try self.init(url: urlObj,
                           count: count,
-                          interval: interval,
                           readTimeout: readTimeout,
                           connectionTimeout: connectionTimeout,
                           headers: headers,
-                          useServerTiming: useServerTiming
+                          useServerTiming: useServerTiming,
+                          useURLSession: useURLSession
                         )
         }
 
+        /// Initialize a HTTP Ping Client `Configuration`.
+        ///
+        /// - Parameters:
+        ///     - url: the URL string indicating the endpoint target that the HTTP Ping Client will try to connect to.
+        ///
+        ///     - Throws:
+        ///         - httpMissingHost: if URL does not include any host information.
+        ///         - httpMissingSchema: if URL does not include any valid schema.
+        ///
         public init(url: String) throws {
             guard let urlObj = URL(string: url) else {
-                throw PingError.invalidURL
+                throw PingError.invalidURL(url)
             }
             try self.init(url: urlObj)
         }
 
+        /// Create the HTTP `Request` that will be used for the HTTP Ping Client
+        ///
+        /// - Parameters:
+        ///     - for: the sequence number of the request
+        /// - Returns: a `Request` object.
         public func makeHTTPRequest(for sequenceNumber: UInt16) -> Request {
             let requestHead = HTTPRequestHead(version: .http1_1, method: .GET, uri: url.uri, headers: self.httpHeaders)
             return Request(sequenceNumber: sequenceNumber, requestHead: requestHead)
@@ -322,6 +397,7 @@ extension HTTPPingClient {
 }
 
 extension URL {
+    /// The URI string representation given the URL object.
     var uri: String {
         if self.path.isEmpty {
             return "/"

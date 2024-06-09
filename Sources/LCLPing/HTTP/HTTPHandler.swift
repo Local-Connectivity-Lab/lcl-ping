@@ -14,7 +14,7 @@ import Foundation
 import NIOCore
 import NIOHTTP1
 
-final class HTTPHandler1: PingHandler {
+final class HTTPHandler: PingHandler {
 
     private var latency: HTTPLatency
     private let promise: EventLoopPromise<PingResponse>

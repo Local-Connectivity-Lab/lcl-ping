@@ -15,6 +15,9 @@ import NIOCore
 import NIO
 import NIOConcurrencyHelpers
 
+/// The Ping client that initiates ping test via the ICMP protocol.
+/// Caller needs to provide a configuration that set the way the ICMP client initiates tests.
+/// Caller can also cancel the test via `cancel()`.
 public final class ICMPPingClient: Pingable {
 
     private let eventLoopGroup: EventLoopGroup
@@ -31,6 +34,12 @@ public final class ICMPPingClient: Pingable {
     private var rewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject]?
     #endif
 
+    /// Initialize the ICMP Ping client.
+    ///
+    /// - Parameters:
+    ///     - eventLoopGroup: the event loop group through which the test will be conducted. 
+    ///                        By default, a singleton event loop group will be used.
+    ///     - configuration: the configuration that instructs how ICMP Ping client should perform the ping test.
     public init(eventLoopGroup: EventLoopGroup = MultiThreadedEventLoopGroup.singleton, configuration: Configuration) {
         self.eventLoopGroup = eventLoopGroup
         self.state = .ready
@@ -97,23 +106,28 @@ public final class ICMPPingClient: Pingable {
         }
     }
 
+    /// Cancel the running ICMP ping test
+    ///
+    /// - Note: Calling this method before the test starts of after the test ends results in a no-op.
     public func cancel() {
-        logger.debug("[\(#fileID)][\(#line)][\(#function)]: Cancel icmp ping!")
+        print("[\(#fileID)][\(#line)][\(#function)]: Cancel icmp ping!")
         self.stateLock.withLockVoid {
             switch self.state {
             case .ready:
                 self.state = .cancelled
                 self.promise.fail(PingError.taskIsCancelled)
+                print("shut down => from ready state")
                 shutdown()
             case .running:
                 self.state = .cancelled
+                print("shut down => from running state")
                 shutdown()
             case .error:
-                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in error state.")
+                print("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in error state.")
             case .cancelled:
-                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in cancelled state.")
+                print("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in cancelled state.")
             case .finished:
-                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when test is finished.")
+                print("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when test is finished.")
             }
         }
     }
@@ -132,7 +146,7 @@ public final class ICMPPingClient: Pingable {
                 }
                 let handlers: [ChannelHandler] = [
                     TrafficControllerChannelHandler(networkLinkConfig: networkLinkConfig),
-                    InboundHeaderRewriter(rewriteHeaders: self.rewriteHeaders),
+                    InboundHeaderRewriter<AddressedEnvelope<ByteBuffer>>(rewriteHeaders: self.rewriteHeaders),
                     IPDecoder(),
                     ICMPDecoder(),
                     ICMPDuplexer(resolvedAddress: resolvedAddress, handler: self.handler)
@@ -157,14 +171,18 @@ public final class ICMPPingClient: Pingable {
     }
 
     private func shutdown() {
-        print("shut down icmp ping client")
-        self.channel?.close(mode: .all).whenFailure { error in
-            print("Cannot close channel: \(error)")
+        if let channel = self.channel, channel.isActive {
+            logger.debug("shut down icmp ping client")
+            self.channel?.close(mode: .all).whenFailure { error in
+                print("Cannot close channel: \(error)")
+            }
         }
     }
 }
 
 extension ICMPPingClient {
+
+    /// The configuration that will be used to configure the ICMP Ping Client.
     public struct Configuration {
         /// The target host that LCLPing will send the Ping request to
         public let endpoint: EndpointTarget
@@ -195,10 +213,13 @@ extension ICMPPingClient {
         }
     }
 
+    /// The type of endpoint target, either in IPv4 or IPv6.
     public enum EndpointTarget {
         case ipv4(String, Int?)
         case ipv6(String, Int?)
 
+        /// the resolved address given the string representation of the endpoint target.
+        /// If the address or port cannot be resolved, then `resolvedAddress` will be nil.
         var resolvedAddress: SocketAddress? {
             switch self {
             case .ipv4(let addr, let port):

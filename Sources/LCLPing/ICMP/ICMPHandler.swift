@@ -15,10 +15,17 @@ import NIOCore
 
 extension ICMPPingClient {
 
+    /// The identifier used by the ICMP Header
     var identifier: UInt16 { return 0xbeef }
 
+    /// The request that the ICMP Ping Client expects
+    ///
+    /// The information in this data will be used to construct the corresponding ICMP header.
     internal struct Request {
+        /// The sequence number of the ICMP test. This number should be monotonically increasing.
         let sequenceNum: UInt16
+
+        /// The identifier that will be used in the ICMP header (by default, it is `identifier (0xbeef)`.
         let identifier: UInt16
     }
 
@@ -39,17 +46,18 @@ extension ICMPPingClient {
     /// The ICMP request message header
     internal struct ICMPHeader {
 
-        // ICMP message type (ECHO_REQUEST)
+        /// ICMP message type (ECHO_REQUEST)
         let type: UInt8
         let code: UInt8
         var checkSum: UInt16
 
-        // the packet identifier
+        /// the packet identifier
         let idenifier: UInt16
 
-        // the packet sequence number
+        /// the packet sequence number
         let sequenceNum: UInt16
 
+        /// the ICMP header payload
         var payload: ICMPRequestPayload
 
         init(type: UInt8 = ICMPType.echoRequest.rawValue, code: UInt8 = 0, idenifier: UInt16, sequenceNum: UInt16) {
@@ -61,12 +69,14 @@ extension ICMPPingClient {
             self.payload = ICMPRequestPayload(timestamp: Date.currentTimestamp, identifier: self.idenifier)
         }
 
-        /// Calculate and then set the checksum of the request header
+        /// Calculate and then set the checksum of the request header.
         mutating func setChecksum() {
             self.checkSum = calcChecksum()
         }
 
         /// Calculate the checksum of the given ICMP header
+        ///
+        /// - Returns: the checksum value of this ICMP header.
         func calcChecksum() -> UInt16 {
             let typecode = Data([self.type, self.code]).withUnsafeBytes { $0.load(as: UInt16.self) }
             var sum = UInt64(typecode) + UInt64(self.idenifier) + UInt64(self.sequenceNum)
@@ -102,10 +112,8 @@ extension ICMPPingClient {
 }
 
 extension ICMPPingClient.ICMPHeader {
-    mutating func toData() -> Data {
-        return Data(bytes: &self, count: sizeof(ICMPPingClient.ICMPHeader.self))
-    }
 
+    /// The ICMP header in byte array form.
     var data: Data {
         var payload = self
         return Data(bytes: &payload, count: sizeof(ICMPPingClient.ICMPHeader.self))
@@ -114,7 +122,7 @@ extension ICMPPingClient.ICMPHeader {
 
 extension ICMPPingClient.ICMPRequestPayload {
 
-    /// Convert ICMP request payload in the header to byte array
+    /// ICMP request payload in the header in byte array form.
     var data: Data {
         var payload = self
         return Data(bytes: &payload, count: sizeof(ICMPPingClient.ICMPRequestPayload.self))
@@ -127,14 +135,19 @@ final class ICMPHandler: PingHandler {
     typealias Response = ICMPPingClient.ICMPHeader
 
     private let totalCount: Int
-    /// sequence number to ICMP request
+    // sequence number to ICMP request
     private var seqToRequest: [UInt16: ICMPPingClient.ICMPHeader]
 
-    /// sequence number to an optional ICMP response
+    // sequence number to an optional ICMP response
     private var seqToResponse: [UInt16: ICMPPingClient.ICMPHeader?]
+
+    // a set that contains the response sequence number received by the handler
     private var responseSeqNumSet: Set<UInt16>
+
+    // a list of `PingResponse`
     private var result: [PingResponse]
 
+    // the promise that will be resolved when the ping test is done.
     private var icmpPingPromise: EventLoopPromise<[PingResponse]>
 
     init(totalCount: Int, promise: EventLoopPromise<[PingResponse]>) {
@@ -321,7 +334,7 @@ final class ICMPHandler: PingHandler {
 
     func handleTimeout(sequenceNumber: UInt16) {
         if !self.responseSeqNumSet.contains(sequenceNumber) {
-            print("#\(sequenceNumber) timed out")
+            logger.debug("[\(#fileID)][\(#line)][\(#function)]: #\(sequenceNumber) timed out")
             self.responseSeqNumSet.insert(sequenceNumber)
             self.result.append(.timeout(sequenceNumber))
             shouldCloseHandler()

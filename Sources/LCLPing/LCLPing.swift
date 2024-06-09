@@ -19,11 +19,12 @@ import NIOPosix
  /// An LCLPing instance allows the caller to initialize the ping test with 
  /// either ICMP or HTTP method and read the result once the test finishes.
  /// It also gives caller the opportunity to cancel the test.
- /// The caller can reuse the same ping configuration and rerun the test multiple times
  public struct LCLPing {
 
      /// A instance that implements Pingable protocol.
      private var ping: Pingable
+
+     /// Type of test (ICMP or HTTP) that the caller wants to perform
      private let pingType: PingType
 
      /// Initialize the LCLPing instance with the given options
@@ -37,11 +38,15 @@ import NIOPosix
          }
      }
 
+     /// Start the ping test with the `pingType` and associated configuration
+     ///
+     /// - Returns: An future, when resolved, contains the result `PingSummary`
      public func start() throws -> EventLoopFuture<PingSummary> {
          return try ping.start()
      }
 
-     /// Stop the current ping test.
+     /// Cancel the current ping test.
+     /// All outstanding tests will be canceled and results will be ignored.
      public func cancel() {
          logger.debug("try to stop ping")
          ping.cancel()

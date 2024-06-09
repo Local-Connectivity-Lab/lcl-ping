@@ -17,7 +17,7 @@ import NIOHTTP1
 import NIOTestUtils
 @testable import LCLPing
 
-final class HTTPDuplexer1Tests: XCTestCase {
+final class HTTPTracingHandlerTests: XCTestCase {
 
     private var channel: EmbeddedChannel!
     private var loop: EmbeddedEventLoop {
@@ -40,8 +40,8 @@ final class HTTPDuplexer1Tests: XCTestCase {
             readTimeout: .seconds(10)
         )
         let promise = self.channel.eventLoop.makePromise(of: PingResponse.self)
-        let handler = HTTPHandler1(promise: promise)
-        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPDuplexer1(configuration: config, handler: handler)).wait())
+        let handler = HTTPHandler(promise: promise)
+        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, handler: handler)).wait())
         channel.pipeline.fireChannelActive()
         promise.fail(PingError.forTestingPurposeOnly)
     }
@@ -53,8 +53,8 @@ final class HTTPDuplexer1Tests: XCTestCase {
             readTimeout: .seconds(10)
         )
         let promise = self.channel.eventLoop.makePromise(of: PingResponse.self)
-        let handler = HTTPHandler1(promise: promise)
-        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPDuplexer1(configuration: config, handler: handler)).wait())
+        let handler = HTTPHandler(promise: promise)
+        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, handler: handler)).wait())
         channel.pipeline.fireChannelActive()
         let request = config.makeHTTPRequest(for: 2)
         try channel.writeOutbound(request)
@@ -82,8 +82,8 @@ final class HTTPDuplexer1Tests: XCTestCase {
             readTimeout: .seconds(10)
         )
         let promise = self.channel.eventLoop.makePromise(of: PingResponse.self)
-        let handler = HTTPHandler1(promise: promise)
-        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPDuplexer1(configuration: config, handler: handler)).wait())
+        let handler = HTTPHandler(promise: promise)
+        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, handler: handler)).wait())
         channel.pipeline.fireChannelActive()
         let httpRequest = config.makeHTTPRequest(for: 2)
         try channel.writeOutbound(httpRequest)
@@ -101,23 +101,6 @@ final class HTTPDuplexer1Tests: XCTestCase {
         }
     }
 
-    // Note: swift-nio doesn't support firing error while writing to outbound
-//    func testWriteOnClosedChannel() throws {
-//        let httpOptions = LCLPing.PingConfiguration.HTTPOptions()
-//        let config = LCLPing.PingConfiguration(
-//            type: .http(httpOptions),
-//            endpoint: .ipv4("127.0.0.1", 8080),
-//            timeout: 10
-//        )
-//        XCTAssertNoThrow(try channel.pipeline.addHandler(EventCounterHandler()).wait())
-//        XCTAssertNoThrow(try channel.pipeline.addHandler(HTTPDuplexer1(configuration: config, httpOptions: httpOptions)).wait())
-//
-//        let httpRequest = HTTPRequestHead(version: .http1_1, method: .GET, uri: "127.0.0.1:8080/")
-//        XCTAssertThrowsError(try channel.writeOutbound((UInt16(2), httpRequest)))
-//        self.loop.run()
-//        channel.pipeline.fireChannelActive()
-//    }
-
     func testReadWithoutWrite() throws {
         XCTAssertNotNil(channel, "Channel should be initialized by now but is still nil")
         let config = try HTTPPingClient.Configuration(
@@ -127,8 +110,8 @@ final class HTTPDuplexer1Tests: XCTestCase {
         let promise = self.channel.eventLoop.makePromise(of: PingResponse.self)
         let eventCounter = EventCounterHandler()
         XCTAssertNoThrow(try channel.pipeline.addHandler(eventCounter).wait())
-        let handler = HTTPHandler1(promise: promise)
-        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPDuplexer1(configuration: config, handler: handler)).wait())
+        let handler = HTTPHandler(promise: promise)
+        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, handler: handler)).wait())
 
         channel.pipeline.fireChannelActive()
         let head = HTTPClientResponsePart.head(HTTPResponseHead(version: .http1_1, status: .ok))
@@ -175,8 +158,8 @@ final class HTTPDuplexer1Tests: XCTestCase {
             channel = EmbeddedChannel()
             let (seqNum, responseStatus, responseCode) = pair
             let promise = self.channel.eventLoop.makePromise(of: PingResponse.self)
-            let handler = HTTPHandler1(promise: promise)
-            XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPDuplexer1(configuration: config, handler: handler)).wait())
+            let handler = HTTPHandler(promise: promise)
+            XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, handler: handler)).wait())
             channel.pipeline.fireChannelActive()
             let httpRequest = config.makeHTTPRequest(for: seqNum)
             let httpResponseHead = HTTPClientResponsePart.head(.init(version: .http1_1, status: responseStatus))
@@ -238,8 +221,8 @@ final class HTTPDuplexer1Tests: XCTestCase {
             let (seqNum, httpHeader, serverTiming) = parameter
             let httpRequest = config.makeHTTPRequest(for: seqNum)
             let promise = self.channel.eventLoop.makePromise(of: PingResponse.self)
-            let handler = HTTPHandler1(useServerTiming: config.useServerTiming, promise: promise)
-            XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPDuplexer1(configuration: config, handler: handler)).wait())
+            let handler = HTTPHandler(useServerTiming: config.useServerTiming, promise: promise)
+            XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, handler: handler)).wait())
             channel.pipeline.fireChannelActive()
             let httpResponseHead = HTTPClientResponsePart.head(.init(version: .http1_1, status: .ok, headers: httpHeader))
             try channel.writeOutbound(httpRequest)
@@ -268,8 +251,8 @@ final class HTTPDuplexer1Tests: XCTestCase {
             readTimeout: .seconds(1)
         )
         let promise = self.channel.eventLoop.makePromise(of: PingResponse.self)
-        let handler = HTTPHandler1(promise: promise)
-        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPDuplexer1(configuration: config, handler: handler)).wait())
+        let handler = HTTPHandler(promise: promise)
+        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, handler: handler)).wait())
         channel.pipeline.fireChannelActive()
         let httpRequest = config.makeHTTPRequest(for: 1)
         let exp = XCTestExpectation(description: "Read Tiemout")

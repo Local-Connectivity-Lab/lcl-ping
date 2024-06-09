@@ -13,8 +13,13 @@
 import Foundation
 
 extension LCLPing {
+
+    /// Type of reachability test that `LCLPing` supports
     public enum PingType {
+        /// Perform reachability ping test through the ICMP protocol.
         case icmp(ICMPPingClient.Configuration)
+
+        /// Perform reachability ping test through the HTTP protocol.
         case http(HTTPPingClient.Configuration)
     }
 }

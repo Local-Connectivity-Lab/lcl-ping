@@ -47,9 +47,9 @@ final class ICMPDecoderTests: XCTestCase {
     }
 
     func testEmptyICMPPacket() throws {
-        let expectedError: RuntimeError = .insufficientBytes("Not enough bytes in the reponse message. Need 18 bytes. But received 0")
+        let expectedError: PingError = .insufficientBytes("Not enough bytes in the reponse message. Need 18 bytes. But received 0")
         XCTAssertThrowsError(try sendICMPPacket(byteString: "")) { error in
-            XCTAssertEqual(error as? RuntimeError, expectedError)
+            XCTAssertEqual((error as? PingError)?.description, expectedError.description)
         }
     }
 
@@ -65,9 +65,9 @@ final class ICMPDecoderTests: XCTestCase {
     }
 
     func testInsufficientByteLength() throws {
-        let expectedError: RuntimeError = .insufficientBytes("Not enough bytes in the reponse message. Need 18 bytes. But received 14")
+        let expectedError: PingError = .insufficientBytes("Not enough bytes in the reponse message. Need 18 bytes. But received 14")
         XCTAssertThrowsError(try sendICMPPacket(byteString: "0000f809efbe0100ecf6a2e6be58")) { error in
-            XCTAssertEqual(error as? RuntimeError, expectedError)
+            XCTAssertEqual((error as? PingError)?.description, expectedError.description)
         }
     }
 }

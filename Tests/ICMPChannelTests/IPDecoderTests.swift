@@ -90,18 +90,18 @@ final class IPDecoderTests: XCTestCase {
     
     func testDecodeInsufficientByteLength() throws {
         #if canImport(Darwin)
-        let expectedError: RuntimeError = .insufficientBytes("Not enough bytes in the reponse message. Need 20 bytes. But received 8")
+        let expectedError: PingError = .insufficientBytes("Not enough bytes in the reponse message. Need 20 bytes. But received 8")
         XCTAssertThrowsError(try sendIPPacket(byteString: "4500005400000000")) { error in
-            XCTAssertEqual(error as? RuntimeError, expectedError)
+            XCTAssertEqual((error as? PingError)?.description, expectedError.description)
         }
         #endif
     }
     
     func testDecodeEmptyPacket() throws {
         #if canImport(Darwin)
-        let expectedError: RuntimeError = .insufficientBytes("Not enough bytes in the reponse message. Need 20 bytes. But received 0")
+        let expectedError: PingError = .insufficientBytes("Not enough bytes in the reponse message. Need 20 bytes. But received 0")
         XCTAssertThrowsError(try sendIPPacket(byteString: "")) { error in
-            XCTAssertEqual(error as? RuntimeError, expectedError)
+            XCTAssertEqual((error as? PingError)?.description, expectedError.description)
         }
         #endif
     }

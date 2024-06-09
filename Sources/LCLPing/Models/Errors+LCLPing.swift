@@ -13,17 +13,13 @@
 import Foundation
 
 public enum PingError: Error {
-    case operationNotSupported(String)
+
     case unknownError(String)
-    case invalidConfiguration(String)
-    case hostConnectionError(Error)
-    case sendPingFailed(Error)
     case invalidLatencyResponseState
     case taskIsCancelled
 
-    case failedToInitialzeChannel
     case invalidICMPResponse
-    case invalidURL
+    case invalidURL(String)
     case invalidIPVersion
     case invalidIPProtocol
     case invalidICMPChecksum
@@ -57,27 +53,109 @@ public enum PingError: Error {
     case icmpMissingARequiredOption
     case icmpBadLength
 
-    case invalidHTTPSession
-    case httpRequestFailed(Int)
-
-    case httpNoMatchingRequest
-    case httpNoResponse
-    case httpRedirect
-    case httpClientError
-    case httpServerError
-    case httpUnknownStatus(UInt)
     case httpMissingHost
     case httpMissingSchema
-    case httpUnableToEstablishTLSConnection
-    case httpMissingResult
     case httpInvalidResponseStatusCode(Int)
     case httpInvalidHandlerState
 
     case invalidHexFormat
 
+    case insufficientBytes(String)
+
     case forTestingPurposeOnly
 }
 
-public enum RuntimeError: Error, Equatable {
-    case insufficientBytes(String)
+extension PingError: CustomStringConvertible {
+
+    public var description: String {
+        switch self {
+        case .unknownError(let string):
+            return "Unknown Error: \(string)."
+        case .invalidLatencyResponseState:
+            return "Latency response is in invalid state."
+        case .taskIsCancelled:
+            return "Task is cancelled."
+        case .invalidICMPResponse:
+            return "ICMP response is invalid."
+        case .invalidURL(let url):
+            return "URL (\(url)) is invalid."
+        case .invalidIPVersion:
+            return "IP version in the ICMP header is invalid."
+        case .invalidIPProtocol:
+            return "IP protocol in the ICMP header is invalid."
+        case .invalidICMPChecksum:
+            return "Checksum in the ICMP header is invalid."
+        case .invalidICMPIdentifier:
+            return "Identifier in the ICMP header is invalid."
+        case .icmpDestinationNetworkUnreachable:
+            return "Destination network is unreachable."
+        case .icmpDestinationHostUnreachable:
+            return "Destination host is unreachable."
+        case .icmpDestinationProtocoltUnreachable:
+            return "Destination protocol is unreachable."
+        case .icmpDestinationPortUnreachable:
+            return "Destination port is unreachable."
+        case .icmpFragmentationRequired:
+            return "Fragmentation is needed and Don't Fragment was set"
+        case .icmpSourceRouteFailed:
+            return "Source route failed."
+        case .icmpUnknownDestinationNetwork:
+            return "Destination network is unknown."
+        case .icmpUnknownDestinationHost:
+            return "Destination host is unknown."
+        case .icmpSourceHostIsolated:
+            return "Source host is isolated"
+        case .icmpNetworkAdministrativelyProhibited:
+            return "Communication with destination network is administratively prohibited."
+        case .icmpHostAdministrativelyProhibited:
+            return "Communication with destination host is adminstratively prohibited."
+        case .icmpNetworkUnreachableForToS:
+            return "Destination network is unreachable for type of service."
+        case .icmpHostUnreachableForToS:
+            return "Destination host is unreachable for type of service."
+        case .icmpCommunicationAdministrativelyProhibited:
+            return "Communication is administratively prohibited."
+        case .icmpHostPrecedenceViolation:
+            return "Host precedence violation."
+        case .icmpPrecedenceCutoffInEffect:
+            return "Precedence cutoff is in effect."
+        case .icmpRedirectDatagramForNetwork:
+            return "Redirect datagram for network (or subnet)."
+        case .icmpRedirectDatagramForHost:
+            return "Redirect datagram for the host."
+        case .icmpRedirectDatagramForTosAndNetwork:
+            return "Redirect datagram for the type of service and network."
+        case .icmpRedirectDatagramForTosAndHost:
+            return "Redirect datagram for the type of service and host."
+        case .icmpRouterAdvertisement:
+            return "Router advertisement."
+        case .icmpRouterDiscoverySelectionSolicitation:
+            return "Router discovery/selection/solicitation."
+        case .icmpTTLExpiredInTransit:
+            return "Time to Live exceeded in transit."
+        case .icmpFragmentReassemblyTimeExceeded:
+            return "Fragment reassembly time exceeded."
+        case .icmpPointerIndicatesError:
+            return "Pointer indicates the error."
+        case .icmpMissingARequiredOption:
+            return "Missing a required option."
+        case .icmpBadLength:
+            return "Bad length."
+        case .httpMissingHost:
+            return "Host is missing in the HTTP request."
+        case .httpMissingSchema:
+            return "Schema is missing in the HTTP request."
+        case .httpInvalidResponseStatusCode(let code):
+            return "Received invalid response status code (\(code))."
+        case .httpInvalidHandlerState:
+            return "HTTP Handler is not in a valid state."
+        case .invalidHexFormat:
+            return "Invalid hex format."
+        case .insufficientBytes(let string):
+            return "Insufficient bytes: \(string)"
+        case .forTestingPurposeOnly:
+            return "For testing purpose ONLY."
+        }
+    }
+
 }

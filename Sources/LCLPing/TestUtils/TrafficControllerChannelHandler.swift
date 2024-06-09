@@ -14,43 +14,62 @@ import Foundation
 import NIO
 import NIOCore
 
-class TrafficControllerChannelHandler: ChannelDuplexHandler {
+/// This channel handler emulates different network conditions, according to the `NetworkLinkConfiguration`.
+/// This channel handler _should not_ be used in normal testing.
+///
+/// - Note: This channel handler should usually be placed at the first position in the channel handlers pipeline.
+final class TrafficControllerChannelHandler: ChannelDuplexHandler {
 
-    class NetworkLinkConfiguration {
+    /// The configuration to simulate different network conditions.
+    struct NetworkLinkConfiguration {
 
+        /// A fully disconnected network. Using this configuration, all inbound and outbound packets will be dropped.
         public static let fullyDisconnected: NetworkLinkConfiguration = .init(inPacketLoss: 1.0,
                                                                               outPacketLoss: 1.0,
                                                                               inDelay: .zero,
                                                                               outDelay: .zero,
                                                                               inDuplicate: .zero)
+
+        /// A fully connected network. Using this configuration, all packets flows normally without any interferences.
         public static let fullyConnected: NetworkLinkConfiguration = .init()
+
+        /// A fully duplicated network. Using this configuration, each inbound packet will be duplicated, which means inbound handlers that followed `TrafficControllerChannelHandler`
+        /// will receive two identical packets.
         public static let fullyDuplicated: NetworkLinkConfiguration = .init(inDuplicate: 1.0)
 
         private static func ensureInRange<T: Comparable>(from: T, to: T, val: T) -> T {
             return min(max(from, val), to)
         }
 
+        /// The possibility, in double, that the inbound packet will be dropped. Value should be between `0.0` and `1.0`.
         private(set) var inPacketLoss: Double {
             didSet {
                 inPacketLoss = NetworkLinkConfiguration.ensureInRange(from: 0.0, to: 1.0, val: inPacketLoss)
             }
         }
+
+        /// The possibility, in double, that the outbound packet will be dropped. Value should be between `0.0` and `1.0`.
         private(set) var outPacketLoss: Double {
             didSet {
                 outPacketLoss = NetworkLinkConfiguration.ensureInRange(from: 0.0, to: 1.0, val: outPacketLoss)
             }
         }
+
+        /// The number of seconds that the inbound packet will be delayed before delivering to inbound handlers that followed. Value should be between `0` and `Int64.max`.
         private(set) var inDelay: Int64 {
             didSet {
                 inDelay = NetworkLinkConfiguration.ensureInRange(from: 0, to: .max, val: inDelay)
             }
         }
+
+        /// The number of seconds that the outbound packet will be delayed before delivering to the next outbound handlers. Value should be between `0` and `Int64.max`.
         private(set) var outDelay: Int64 {
             didSet {
                 inDelay = NetworkLinkConfiguration.ensureInRange(from: 0, to: .max, val: inDelay)
             }
         }
 
+        /// The possibility, in double, that the inbound packet will be duplicated. Value should be between `0.0` and `1.0`.
         private(set) var inDuplicate: Double {
             didSet {
                 inDuplicate = NetworkLinkConfiguration.ensureInRange(from: 0.0, to: 1.0, val: inDuplicate)

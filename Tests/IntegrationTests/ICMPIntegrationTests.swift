@@ -239,7 +239,7 @@ final class ICMPIntegrationTests: XCTestCase {
             let icmpPing = ICMPPingClient(networkLinkConfig: .fullyConnected, rewriteHeaders: nil, configuration: pingConfig)
             
             DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(waitSecond)) {
-                print("will cancel ping")
+                print("will cancel ping after waiting \(waitSecond) s")
                 icmpPing.cancel()
             }
 

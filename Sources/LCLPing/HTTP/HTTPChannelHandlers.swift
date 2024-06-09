@@ -24,7 +24,7 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
 
     private var state: State
     private let configuration: HTTPPingClient.Configuration
-    private let handler: HTTPHandler1
+    private let handler: HTTPHandler
     private var timer: Scheduled<Void>?
 
     private enum State {
@@ -42,7 +42,7 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
         }
     }
 
-    init(configuration: HTTPPingClient.Configuration, handler: HTTPHandler1) {
+    init(configuration: HTTPPingClient.Configuration, handler: HTTPHandler) {
         self.state = .inactive
         self.configuration = configuration
         self.handler = handler

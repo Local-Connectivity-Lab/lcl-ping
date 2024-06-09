@@ -14,7 +14,9 @@ import Foundation
 import NIOCore
 import NIO
 
-class InboundHeaderRewriter<In: Rewritable>: ChannelInboundHandler {
+/// Rewrite the inbound data using the given `NewValue`.
+/// If no new value is provided, then the incoming data will be kept and delivered to the next inbound handler.
+final class InboundHeaderRewriter<In: Rewritable>: ChannelInboundHandler {
     typealias InboundIn = In
     typealias InboundOut = In
 
@@ -34,9 +36,9 @@ class InboundHeaderRewriter<In: Rewritable>: ChannelInboundHandler {
     }
 
     private var state: State
-    private var rewriteHeaders: [PartialKeyPath<In>: AnyObject]?
+    private var rewriteHeaders: In.NewValue?
 
-    init(rewriteHeaders: [PartialKeyPath<In>: AnyObject]?) {
+    init(rewriteHeaders: In.NewValue?) {
         self.rewriteHeaders = rewriteHeaders
         self.state = .inactive
     }
@@ -57,7 +59,7 @@ class InboundHeaderRewriter<In: Rewritable>: ChannelInboundHandler {
     func channelInactive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
-            logger.debug("[InboundHeaderRewriter][\(#fileID)][\(#line)][\(#function)]: Channel inactive")
+            logger.debug("[\(#fileID)][\(#line)][\(#function)]: Channel inactive")
             context.fireChannelInactive()
             self.state = .inactive
         case .error:
