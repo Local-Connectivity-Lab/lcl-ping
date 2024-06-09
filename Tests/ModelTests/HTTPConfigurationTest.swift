@@ -16,9 +16,10 @@ import NIOCore
 
 final class HTTPConfigurationTest: XCTest {
     func testInvalidIPURL() throws {
-        let expectedError = PingError.invalidURL
+        let urlString = "ww.invalid-url.^&*:8080"
+        let expectedError = PingError.invalidURL(urlString)
         do {
-            _ = try HTTPPingClient.Configuration(url: "ww.invalid-url.^&*:8080")
+            _ = try HTTPPingClient.Configuration(url: urlString)
             XCTFail("Expect throwing PingError.invalidURL")
         } catch {
             XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)

@@ -18,32 +18,32 @@ final class ICMPChecksumTests: XCTestCase {
         var header1 = ICMPPingClient.ICMPHeader(idenifier: 123, sequenceNum: 456)
         header1.payload = ICMPPingClient.ICMPRequestPayload(timestamp: 987654321.0, identifier: header1.idenifier)
         header1.setChecksum()
-        XCTAssertEqual(header1.toData().computeIPChecksum(), 0)
+        XCTAssertEqual(header1.data.computeIPChecksum(), 0)
 
         var header2 = ICMPPingClient.ICMPHeader(idenifier: 789, sequenceNum: 321)
         header2.payload = ICMPPingClient.ICMPRequestPayload(timestamp: 123456789.0, identifier: header2.idenifier)
         header2.setChecksum()
-        XCTAssertEqual(header2.toData().computeIPChecksum(), 0)
+        XCTAssertEqual(header2.data.computeIPChecksum(), 0)
 
         var header3 = ICMPPingClient.ICMPHeader(idenifier: 1, sequenceNum: 2)
         header3.payload = ICMPPingClient.ICMPRequestPayload(timestamp: 987654321.0, identifier: header3.idenifier)
         header3.setChecksum()
-        XCTAssertEqual(header3.toData().computeIPChecksum(), 0)
+        XCTAssertEqual(header3.data.computeIPChecksum(), 0)
 
         var header4 = ICMPPingClient.ICMPHeader(idenifier: 5, sequenceNum: 777)
         header4.payload = ICMPPingClient.ICMPRequestPayload(timestamp: 123456789.0, identifier: header4.idenifier)
         header4.setChecksum()
-        XCTAssertEqual(header4.toData().computeIPChecksum(), 0)
+        XCTAssertEqual(header4.data.computeIPChecksum(), 0)
 
         var header5 = ICMPPingClient.ICMPHeader(idenifier: 999, sequenceNum: 88)
         header5.payload = ICMPPingClient.ICMPRequestPayload(timestamp: 987654321.0, identifier: header5.idenifier)
         header5.setChecksum()
-        XCTAssertEqual(header5.toData().computeIPChecksum(), 0)
+        XCTAssertEqual(header5.data.computeIPChecksum(), 0)
 
         var header6 = ICMPPingClient.ICMPHeader(idenifier: 777, sequenceNum: 666)
         header6.payload = ICMPPingClient.ICMPRequestPayload(timestamp: 123456789.0, identifier: header6.idenifier)
         header6.setChecksum()
-        XCTAssertEqual(header6.toData().computeIPChecksum(), 0)
+        XCTAssertEqual(header6.data.computeIPChecksum(), 0)
     }
 }
 

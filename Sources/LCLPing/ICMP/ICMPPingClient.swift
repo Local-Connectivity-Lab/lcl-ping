@@ -110,24 +110,24 @@ public final class ICMPPingClient: Pingable {
     ///
     /// - Note: Calling this method before the test starts of after the test ends results in a no-op.
     public func cancel() {
-        print("[\(#fileID)][\(#line)][\(#function)]: Cancel icmp ping!")
+        logger.debug("[\(#fileID)][\(#line)][\(#function)]: Cancel icmp ping!")
         self.stateLock.withLockVoid {
             switch self.state {
             case .ready:
                 self.state = .cancelled
                 self.promise.fail(PingError.taskIsCancelled)
-                print("shut down => from ready state")
+                logger.debug("shut down => from ready state")
                 shutdown()
             case .running:
                 self.state = .cancelled
-                print("shut down => from running state")
+                logger.debug("shut down => from running state")
                 shutdown()
             case .error:
-                print("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in error state.")
+                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in error state.")
             case .cancelled:
-                print("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in cancelled state.")
+                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in cancelled state.")
             case .finished:
-                print("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when test is finished.")
+                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when test is finished.")
             }
         }
     }
@@ -174,7 +174,7 @@ public final class ICMPPingClient: Pingable {
         if let channel = self.channel, channel.isActive {
             logger.debug("shut down icmp ping client")
             self.channel?.close(mode: .all).whenFailure { error in
-                print("Cannot close channel: \(error)")
+                logger.debug("Cannot close channel: \(error)")
             }
         }
     }

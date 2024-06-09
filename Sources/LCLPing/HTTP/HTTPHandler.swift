@@ -40,7 +40,7 @@ final class HTTPHandler: PingHandler {
                         ? matchServerTiming(field: head.headers.first(name: "Server-Timing")!) : estimatedServerTiming
                     }
                 default:
-                    print("received invalid response code: \(statusCode)")
+                    logger.debug("received invalid response code: \(statusCode)")
                     self.latency.state = .error(PingError.httpInvalidResponseStatusCode(Int(statusCode)))
                 }
             case .body:
@@ -122,7 +122,7 @@ final class HTTPHandler: PingHandler {
         case .timeout:
             return .timeout(self.latency.seqNum)
         case .error(let error):
-            print("ping response error: \(error as! PingError)")
+            logger.error("ping response error: \(error as! PingError)")
             return .error(self.latency.seqNum, error)
         case .waiting:
             return .error(self.latency.seqNum, PingError.invalidLatencyResponseState)
