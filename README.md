@@ -12,7 +12,7 @@ LCLPing is a cross-platform Ping library written in Swift, and for Swift. It is 
 
 
 ## Requirements
-- Swift 5.9+
+- Swift 5.7+
 - macOS 10.15+, iOS 14+, Linux
 
 ## Getting Started
@@ -36,8 +36,15 @@ Then import the module to your project
 ```
 
 ### Basic Usage
+```swift
+// Reachability Test
+let isReachable = LCLPing.reachable(via: .ipv4ICMP, strategy: .multiple, host: "google.com")
+print("is reachable: \(isReachable)")
+```
 
 ```swift
+// Run Ping Test
+
 // create ping configuration
 let icmpConfig = ICMPPingClient.Configuration(endpoint: .ipv4("127.0.0.1", 0), count: 1)
 let httpConfig = try HTTPPingClient.Configuration(url: "http://127.0.0.1:8080", count: 1)
@@ -72,9 +79,9 @@ You can also run the [demo](/Sources/Demo/README.md) using `make demo` or `swift
 
 ### Features
 - Ping via ICMP and HTTP(S)
-- Support IPv4 
-- flexible and configurable wait time, time-to-live, count, and duration
-- HTTP(S) supports parsing Server-Timing header to account for time taken by server processing
+- Support IPv4 ICMP and IPv4 and IPv6 for HTTP
+- Flexible and configurable wait time, time-to-live, count, and duration
+- Supports parsing Server-Timing in the HTTP header to account for time taken by server processing
 
 
 ## Contributing

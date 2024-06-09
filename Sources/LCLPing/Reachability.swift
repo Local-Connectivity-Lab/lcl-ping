@@ -79,7 +79,7 @@ extension PingSummary {
     /// Check if ping summary has a simple majority of successful results.
     ///
     /// - Returns: true if a simple majority of results are successful; false otherwise.
-    public func isSimpleMajority() -> Bool {
+    func isSimpleMajority() -> Bool {
         if self.totalCount == 0 {
             return false
         }
