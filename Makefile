@@ -1,12 +1,20 @@
+VENV_NAME := venv
+PYTHON := python3
+
+
 SERVER_PORT=8080
 RUN_FLASK=flask --app Tests/Mock/app.py run
 
-.PHONY: server_environment
-server_environment:
-	python3 -m pip install -r Tests/Mock/requirements.txt
+.PHONY: venv
+venv:
+	@$(PYTHON) -m venv $(VENV_NAME)
+
+.PHONY: environment
+environment:
+	@$(PYTHON) -m pip install -r Tests/Mock/requirements.txt
 
 .PHONY: setup_server
-setup_server: server_environment
+setup_server: environment
 	$(RUN_FLASK) --port $(SERVER_PORT) &
 
 .PHONY: teardown_server

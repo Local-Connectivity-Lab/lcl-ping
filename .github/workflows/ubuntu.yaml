@@ -17,6 +17,11 @@ jobs:
     container: swift:${{ matrix.swift_version }}-jammy
     steps:
       - uses: actions/checkout@v4
+      - name: Setup environment
+        run: |
+          apt-get update -y && \
+          apt-get install make -y && \
+          apt-get install python3 -y
       - name: Swift version
         run: swift --version
       - name: Run unit tests
