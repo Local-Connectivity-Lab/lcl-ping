@@ -22,13 +22,15 @@ jobs:
           apt-get update -y
           apt-get install make -y
           apt-get install python3 -y
-          apt-get install python3.10-venv
-          python3 -m venv venv
-          source venv/bin/activate
-          echo "VIRTUAL ENV:" $VIRTUAL_ENV
+          apt-get install python3.10-venv -y
       - name: Swift version
         run: swift --version
       - name: Run unit tests
         run: make unit_test
       - name: Run integration tests
-        run: make integration_test
+        run: |
+          python3 -m venv venv
+          source venv/bin/activate
+          echo "VIRTUAL ENV:" $VIRTUAL_ENV
+          make environment
+          make integration_test

@@ -13,7 +13,7 @@ environment:
 	python3 -m pip install -r Tests/Mock/requirements.txt
 
 .PHONY: setup_server
-setup_server: environment
+setup_server:
 	$(RUN_FLASK) --port $(SERVER_PORT) &
 
 .PHONY: teardown_server
