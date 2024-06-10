@@ -21,6 +21,8 @@ jobs:
         run: |
           apt-get update -y
           apt-get install make -y
+          apt-get install curl -y
+          apt-get install lsof -y
           apt-get install python3 -y
           apt-get install python3.10-venv -y
       - name: Swift version
