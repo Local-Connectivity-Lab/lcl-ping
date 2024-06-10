@@ -1,0 +1,25 @@
+name: Ubuntu CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Execute tests on Ubuntu
+    strategy:
+      fail-fast: false
+      matrix:
+        swift_version: ["5.10"]
+    runs-on: ubuntu-22.04
+    container: swift:${{ matrix.swift_version }}-jammy
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: Run unit tests
+        run: make unit_test
+      - name: Run integration tests
+        run: make integration_test
