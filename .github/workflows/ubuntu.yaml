@@ -30,7 +30,7 @@ jobs:
       - name: Run integration tests
         run: |
           python3 -m venv venv
-          source venv/bin/activate
+          . venv/bin/activate
           echo "VIRTUAL ENV:" $VIRTUAL_ENV
           make environment
           make integration_test
