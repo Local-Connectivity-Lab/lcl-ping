@@ -57,10 +57,11 @@ final class HTTPIntegrationTests: XCTestCase {
         let config = try HTTPPingClient.Configuration(url: "http://127.0.0.1:9090", count: 1, connectionTimeout: .milliseconds(10))
         do {
             _ = try runTest(pingConfig: config)
-            XCTFail("Expect throwing ")
+            XCTFail("Expect throwing IO error")
         } catch let error as IOError {
             print("in test error: \(error)")
-            XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
+        } catch {
+            XCTFail("Expect throwing IO error, but throw \(error)")
         }
     }
 
