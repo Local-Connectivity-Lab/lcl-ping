@@ -21,7 +21,9 @@ jobs:
         run: |
           apt-get update -y && \
           apt-get install make -y && \
-          apt-get install python3 -y
+          apt-get install python3 -y && \
+          make venv && \
+          source venv/bin/activate
       - name: Swift version
         run: swift --version
       - name: Run unit tests
