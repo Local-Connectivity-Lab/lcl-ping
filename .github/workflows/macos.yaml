@@ -24,8 +24,9 @@ jobs:
           xcode-version: ${{ matrix.xcode-version }}
       - name: Setup environment
         run: |
-          make venv && \
+          python3 -m venv venv
           source venv/bin/activate
+          echo "VIRTUAL ENV:" $VIRTUAL_ENV
       - name: Swift version
         run: swift --version
       - name: Run unit tests
