@@ -23,7 +23,7 @@ LCLPing is a cross-platform Ping library written in Swift, and for Swift. It is 
 
 Add the following to your `Package.swift` file:
 ```code
-.package(url: "https://github.com/Local-Connectivity-Lab/lcl-ping.git", from: "0.2.0")
+.package(url: "https://github.com/Local-Connectivity-Lab/lcl-ping.git", from: "1.0.0")
 ```
 
 Then import the module to your project
