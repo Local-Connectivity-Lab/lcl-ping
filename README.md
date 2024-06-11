@@ -8,7 +8,8 @@ LCLPing is a cross-platform Ping library written in Swift, and for Swift. It is 
 
 # LCLPing
 
-![Swift CI](https://github.com/Local-Connectivity-Lab/lcl-ping/actions/workflows/build.yaml/badge.svg?branch=main)
+![Apple platform CI](https://github.com/Local-Connectivity-Lab/lcl-ping/actions/workflows/macos.yaml/badge.svg?branch=main)
+![Ubuntu CI](https://github.com/Local-Connectivity-Lab/lcl-ping/actions/workflows/ubuntu.yaml/badge.svg?branch=main)
 
 
 ## Requirements
