@@ -16,7 +16,7 @@ import NIOCore
 @testable import LCLPing
 
 final class ICMPDecoderTests: XCTestCase {
-    
+
     private var channel: EmbeddedChannel!
     private var loop: EmbeddedEventLoop {
         return self.channel.embeddedEventLoop
@@ -36,7 +36,7 @@ final class ICMPDecoderTests: XCTestCase {
         XCTAssertNoThrow(try self.channel.pipeline.addHandler(ICMPDecoder()).wait())
         channel.pipeline.fireChannelActive()
     }
-    
+
     private func sendICMPPacket(byteString icmp: String) throws {
         XCTAssertNoThrow(try self.channel.pipeline.addHandler(ICMPDecoder()).wait())
         var buffer = channel.allocator.buffer(capacity: icmp.count)
@@ -45,17 +45,17 @@ final class ICMPDecoderTests: XCTestCase {
         try channel.writeInbound(buffer)
         self.loop.run()
     }
-    
+
     func testEmptyICMPPacket() throws {
-        let expectedError: RuntimeError = .insufficientBytes("Not enough bytes in the reponse message. Need 18 bytes. But received 0")
+        let expectedError: PingError = .insufficientBytes("Not enough bytes in the reponse message. Need 18 bytes. But received 0")
         XCTAssertThrowsError(try sendICMPPacket(byteString: "")) { error in
-            XCTAssertEqual(error as? RuntimeError, expectedError)
+            XCTAssertEqual((error as? PingError)?.description, expectedError.description)
         }
     }
-    
+
     func testValidICMPPacket() throws {
         XCTAssertNoThrow(try sendICMPPacket(byteString: "0000f809efbe0100ecf6a2e6be58d941efbe"))
-        let icmpHeader = try channel.readInbound(as: ICMPHeader.self)
+        let icmpHeader = try channel.readInbound(as: ICMPPingClient.ICMPHeader.self)
         XCTAssertNotNil(icmpHeader)
         XCTAssertEqual(icmpHeader!.code, 0)
         XCTAssertEqual(icmpHeader!.type, 0)
@@ -63,11 +63,11 @@ final class ICMPDecoderTests: XCTestCase {
         XCTAssertEqual(icmpHeader!.sequenceNum, 1)
         XCTAssertEqual(icmpHeader!.payload.identifier, 0xbeef)
     }
-    
+
     func testInsufficientByteLength() throws {
-        let expectedError: RuntimeError = .insufficientBytes("Not enough bytes in the reponse message. Need 18 bytes. But received 14")
+        let expectedError: PingError = .insufficientBytes("Not enough bytes in the reponse message. Need 18 bytes. But received 14")
         XCTAssertThrowsError(try sendICMPPacket(byteString: "0000f809efbe0100ecf6a2e6be58")) { error in
-            XCTAssertEqual(error as? RuntimeError, expectedError)
+            XCTAssertEqual((error as? PingError)?.description, expectedError.description)
         }
     }
 }

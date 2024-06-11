@@ -13,7 +13,7 @@
 import Foundation
 
 /// Possible states of an instance of LCLPing
-public enum PingState: Equatable {
+enum PingState: Equatable {
 
     /// LCLPing is ready to initiate ping requests
     case ready
@@ -24,8 +24,8 @@ public enum PingState: Equatable {
     /// LCLPing encountered error(s)
     case error
 
-    /// LCLPing is stopped by explicit `stop()` and ping summary is ready
-    case stopped
+    /// LCLPing is stopped by explicit `cancel()` and ping summary is ready
+    case cancelled
 
     /// LCLPing finishes and ping summary is ready
     case finished

@@ -14,7 +14,9 @@ import Foundation
 import NIOCore
 import NIO
 
-class InboundHeaderRewriter<In: Rewritable>: ChannelInboundHandler {
+/// Rewrite the inbound data using the given `NewValue`.
+/// If no new value is provided, then the incoming data will be kept and delivered to the next inbound handler.
+final class InboundHeaderRewriter<In: Rewritable>: ChannelInboundHandler {
     typealias InboundIn = In
     typealias InboundOut = In
 
@@ -34,9 +36,9 @@ class InboundHeaderRewriter<In: Rewritable>: ChannelInboundHandler {
     }
 
     private var state: State
-    private var rewriteHeaders: [PartialKeyPath<In>: AnyObject]?
+    private var rewriteHeaders: In.NewValue?
 
-    init(rewriteHeaders: [PartialKeyPath<In>: AnyObject]?) {
+    init(rewriteHeaders: In.NewValue?) {
         self.rewriteHeaders = rewriteHeaders
         self.state = .inactive
     }
@@ -46,10 +48,9 @@ class InboundHeaderRewriter<In: Rewritable>: ChannelInboundHandler {
         case .operational:
             break
         case .error:
-            logger.error("[\(#function)]: in an incorrect state: \(self.state)")
-            assertionFailure("[\(#function)]: in an incorrect state: \(self.state)")
+            assertionFailure("[\(#fileID)][\(#line)][\(#function)]: in an incorrect state: \(self.state)")
         case .inactive:
-            logger.debug("[\(#function)]: Channel active")
+            logger.debug("[\(#fileID)][\(#line)][\(#function)]: Channel active")
             context.fireChannelActive()
             self.state = .operational
         }
@@ -58,20 +59,19 @@ class InboundHeaderRewriter<In: Rewritable>: ChannelInboundHandler {
     func channelInactive(context: ChannelHandlerContext) {
         switch self.state {
         case .operational:
-            logger.debug("[\(#function)]: Channel inactive")
+            logger.debug("[\(#fileID)][\(#line)][\(#function)]: Channel inactive")
             context.fireChannelInactive()
             self.state = .inactive
         case .error:
             break
         case .inactive:
-            logger.error("[\(#function)]: received inactive signal when channel is already in inactive state.")
-            assertionFailure("[\(#function)]: received inactive signal when channel is already in inactive state.")
+            assertionFailure("[\(#fileID)][\(#line)][\(#function)]: received inactive signal when channel is already in inactive state.")
         }
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         guard self.state.isOperational else {
-            logger.debug("[\(#function)]: drop data: \(data) because channel is not in operational state")
+            logger.debug("[\(#fileID)][\(#line)][\(#function)]: drop data: \(data) because channel is not in operational state")
             return
         }
 

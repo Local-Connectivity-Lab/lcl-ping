@@ -12,6 +12,9 @@
 
 import Foundation
 
+/// Responses for each ping test.
+///
+/// There are 4 categories of responses, each of which maps to one potential circumstance during the test
 internal enum PingResponse: Equatable {
     static func == (lhs: PingResponse, rhs: PingResponse) -> Bool {
         switch (lhs, rhs) {
@@ -28,8 +31,18 @@ internal enum PingResponse: Equatable {
         }
     }
 
+    /// Test finishes as expected. The sequence number, latency, and timestamp when the test finishes will be reported.
     case ok(UInt16, Double, TimeInterval)
+
+    /// Test is a duplicate of a previously finished test. The sequence number of the test will be reported.
     case duplicated(UInt16)
+
+    /// Test timed out (no response is received during the period of a some wait time, specified in the configuration).
+    /// The sequence number of the test will be reported.
     case timeout(UInt16)
+
+    /// Test failed with some error. If error occurs during a specific test, 
+    /// then the sequence number of the test will be reported.
+    /// Otherwise, only the error will be reported.
     case error(UInt16?, Error?)
 }

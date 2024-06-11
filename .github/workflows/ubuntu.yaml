@@ -1,0 +1,38 @@
+name: Ubuntu CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Execute tests on Ubuntu
+    strategy:
+      fail-fast: false
+      matrix:
+        swift_version: ["5.10"]
+    runs-on: ubuntu-22.04
+    container: swift:${{ matrix.swift_version }}-jammy
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup environment
+        run: |
+          apt-get update -y
+          apt-get install make -y
+          apt-get install curl -y
+          apt-get install lsof -y
+          apt-get install python3 -y
+          apt-get install python3.10-venv -y
+      - name: Swift version
+        run: swift --version
+      - name: Run unit tests
+        run: make unit_test
+      - name: Run integration tests
+        run: |
+          python3 -m venv venv
+          . venv/bin/activate
+          echo "VIRTUAL ENV:" $VIRTUAL_ENV
+          make environment
+          make integration_test

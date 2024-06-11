@@ -13,19 +13,24 @@
 import Foundation
 import NIOCore
 
+/// The protocol allows the object to modify itself using the new value, partially or as a whole.
 protocol Rewritable {
-    func rewrite(newValues: [PartialKeyPath<Self>: AnyObject]) -> Self
+    associatedtype NewValue
+    func rewrite(newValues: NewValue) -> Self
 }
 
-extension ICMPRequestPayload: Rewritable {
-    func rewrite(newValues: [PartialKeyPath<ICMPRequestPayload>: AnyObject]) -> ICMPRequestPayload {
-        return ICMPRequestPayload(timestamp: newValues[\.timestamp] as? TimeInterval ?? self.timestamp, identifier: newValues[\.identifier] as? UInt16 ?? self.identifier)
+extension ICMPPingClient.ICMPRequestPayload: Rewritable {
+    func rewrite(newValues: [PartialKeyPath<ICMPPingClient.ICMPRequestPayload>: AnyObject])
+     -> ICMPPingClient.ICMPRequestPayload {
+        return ICMPPingClient.ICMPRequestPayload(timestamp: newValues[\.timestamp] as? TimeInterval ?? self.timestamp,
+                                                 identifier: newValues[\.identifier] as? UInt16 ?? self.identifier
+                                                )
     }
 }
 
-extension IPv4Header: Rewritable {
-    func rewrite(newValues: [PartialKeyPath<IPv4Header>: AnyObject]) -> IPv4Header {
-        return IPv4Header(
+extension ICMPPingClient.IPv4Header: Rewritable {
+    func rewrite(newValues: [PartialKeyPath<ICMPPingClient.IPv4Header>: AnyObject]) -> ICMPPingClient.IPv4Header {
+        return ICMPPingClient.IPv4Header(
             versionAndHeaderLength: newValues[\.versionAndHeaderLength] as? UInt8 ?? self.versionAndHeaderLength,
             differentiatedServicesAndECN: newValues[\.differentiatedServicesAndECN] as? UInt8 ?? self.differentiatedServicesAndECN,
             totalLength: newValues[\.totalLength] as? UInt16 ?? self.totalLength,
@@ -40,22 +45,25 @@ extension IPv4Header: Rewritable {
     }
 }
 
-extension ICMPHeader: Rewritable {
-    func rewrite(newValues: [PartialKeyPath<ICMPHeader>: AnyObject]) -> ICMPHeader {
-        var newHeader = ICMPHeader(
+extension ICMPPingClient.ICMPHeader: Rewritable {
+    func rewrite(newValues: [PartialKeyPath<ICMPPingClient.ICMPHeader>: AnyObject]) -> ICMPPingClient.ICMPHeader {
+        var newHeader = ICMPPingClient.ICMPHeader(
             type: newValues[\.type] as? UInt8 ?? self.type,
             code: newValues[\.code] as? UInt8 ?? self.code,
             idenifier: newValues[\.idenifier] as? UInt16 ?? self.idenifier,
             sequenceNum: newValues[\.sequenceNum] as? UInt16 ?? self.sequenceNum
         )
 
-        newHeader.payload = self.payload.rewrite(newValues: newValues[\.payload] as! [PartialKeyPath<ICMPRequestPayload>: AnyObject])
+        newHeader.payload = self.payload.rewrite(
+            newValues: newValues[\.payload] as! [PartialKeyPath<ICMPPingClient.ICMPRequestPayload>: AnyObject]
+        )
         return newHeader
     }
 }
 
 extension AddressedEnvelope: Rewritable where DataType == ByteBuffer {
-    func rewrite(newValues: [PartialKeyPath<NIOCore.AddressedEnvelope<DataType>>: AnyObject]) -> NIOCore.AddressedEnvelope<DataType> {
+    func rewrite(newValues: [PartialKeyPath<NIOCore.AddressedEnvelope<DataType>>: AnyObject])
+        -> NIOCore.AddressedEnvelope<DataType> {
         return AddressedEnvelope(
             remoteAddress: newValues[\.remoteAddress] as? SocketAddress ?? self.remoteAddress,
             data: data.rewrite(newValues: newValues[\AddressedEnvelope.data] as? [RewriteData] ?? [])
@@ -63,30 +71,33 @@ extension AddressedEnvelope: Rewritable where DataType == ByteBuffer {
     }
 }
 
-extension ByteBuffer {
-    func rewrite(newValues: ByteBuffer) -> NIOCore.ByteBuffer {
-        return ByteBuffer(buffer: newValues)
-    }
-
+extension ByteBuffer: Rewritable {
     func rewrite(newValues: [RewriteData]) -> ByteBuffer {
         logger.debug("[ByteBuffer Rewrite]: received new value: \(newValues)")
         var newBuffer = ByteBuffer(buffer: self)
         for newValue in newValues {
             newBuffer.setBytes(newValue.byte.data, at: newValue.index)
         }
-        logger.debug("ByteBuffer Rewrite: rewritten as \(newBuffer.readableBytesView)")
+        logger.debug("[ByteBuffer Rewrite]: rewritten as \(newBuffer.readableBytesView)")
         return newBuffer
     }
 }
 
 extension Int8 {
+
+    /// The bytes representation of the given `Int8`.
     var data: Data {
         var int = self
-        return Data(bytes: &int, count: MemoryLayout<Int8>.size)
+        return Data(bytes: &int, count: sizeof(Int8.self))
     }
 }
 
+/// Rewrite data for `NIO ByteBuffer` indicating the index and the byte that will be replaced to.
 struct RewriteData {
+
+    /// The index of the byte that will be replaced.
     let index: Int
+
+    /// The new byte that will be put at `index`.
     let byte: Int8
 }

@@ -89,24 +89,24 @@ final class SummarizePingResponseTests: XCTestCase {
     private let host = try! SocketAddress(ipAddress: "127.0.0.1", port: 80)
 
     func testEmpty() {
-        let result = summarizePingResponse(empty, host: host)
-        let target = PingSummary(min: .greatestFiniteMagnitude, max: .zero, avg: .zero, median: .zero, stdDev: .zero, jitter: 0.0, details: [], totalCount: 0, timeout: Set(), duplicates: Set(), errors: Set(), ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
+        let result = empty.summarize(host: host)
+        let target = PingSummary(min: .zero, max: .zero, avg: .zero, median: .zero, stdDev: .zero, jitter: 0.0, details: [], totalCount: 0, timeout: Set(), duplicates: Set(), errors: Set(), ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
 
         XCTAssertEqual(result, target)
     }
 
     func testOneValue() {
-        let resultOk = summarizePingResponse(singleValueOk, host: host)
+        let resultOk = singleValueOk.summarize(host: host)
         let targetOk = PingSummary(min: 1.1, max: 1.1, avg: 1.1, median: 1.1, stdDev: 0.0, jitter: 0.0, details: [.init(seqNum: 1, latency: 1.1, timestamp: 100)], totalCount: 1, timeout: Set(), duplicates: Set(), errors: [], ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
         XCTAssertEqual(resultOk, targetOk)
 
-        let resultError = summarizePingResponse(singleValueError, host: host)
-        let targetError = PingSummary(min: .greatestFiniteMagnitude, max: .zero, avg: .zero, median: .zero, stdDev: .zero, jitter: .zero, details: [], totalCount: 1, timeout: Set(), duplicates: Set(), errors: [.init(seqNum: 1, reason: PingError.forTestingPurposeOnly.localizedDescription)], ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
+        let resultError = singleValueError.summarize(host: host)
+        let targetError = PingSummary(min: .zero, max: .zero, avg: .zero, median: .zero, stdDev: .zero, jitter: .zero, details: [], totalCount: 1, timeout: Set(), duplicates: Set(), errors: [.init(seqNum: 1, reason: PingError.forTestingPurposeOnly.localizedDescription)], ipAddress: host.ipAddress!, port: 80, protocol: host.protocol.rawValue)
         XCTAssertEqual(resultError, targetError)
     }
 
     func testMultipleOk() {
-        let resultMultipleOk = summarizePingResponse(multipleOk, host: host)
+        let resultMultipleOk = multipleOk.summarize(host: host)
         let multipleOkPingResults: [PingResult] = [.init(seqNum: 1, latency: 1.3, timestamp: 100), .init(seqNum: 2, latency: 2.3, timestamp: 101), .init(seqNum: 3, latency: 3.1, timestamp: 102)]
         let targetMultipleOk = PingSummary(min: 1.3,
                                            max: 3.1,
@@ -125,9 +125,9 @@ final class SummarizePingResponseTests: XCTestCase {
         )
         XCTAssertEqual(resultMultipleOk, targetMultipleOk)
 
-        let resultMultipleOkAndError = summarizePingResponse(multipleOkAndError, host: host)
+        let resultMultipleOkAndError = multipleOkAndError.summarize(host: host)
         let multipleOkAndErrorPingResults: [PingResult] = [.init(seqNum: 1, latency: 1.3, timestamp: 100), .init(seqNum: 3, latency: 3.1, timestamp: 102), .init(seqNum: 4, latency: 4.2, timestamp: 103)]
-        let multipleOkAndErrorErrors: Set<PingSummary.PingErrorSummary> = [
+        let multipleOkAndErrorErrors: Set<PingSummary.ErrorSummary> = [
             .init(seqNum: 2, reason: PingError.forTestingPurposeOnly.localizedDescription)
         ]
         let targetMultipleOkAndError = PingSummary(min: 1.3,
@@ -145,7 +145,7 @@ final class SummarizePingResponseTests: XCTestCase {
     }
 
     func testMultipleOkAndDuplicates() {
-        let resultMultipleOkAndDuplicates = summarizePingResponse(multpleOkAndDuplicates, host: host)
+        let resultMultipleOkAndDuplicates = multpleOkAndDuplicates.summarize(host: host)
         let multipleOkAndDuplicates = [
             PingResult(seqNum: 1, latency: 1.3, timestamp: 100),
             PingResult(seqNum: 3, latency: 3.1, timestamp: 103)
@@ -164,7 +164,7 @@ final class SummarizePingResponseTests: XCTestCase {
     }
 
     func testMultipleOkAndTimeouts() {
-        let resultMultipleOkAndTimeouts = summarizePingResponse(multipleOkAndTimeouts, host: host)
+        let resultMultipleOkAndTimeouts = multipleOkAndTimeouts.summarize(host: host)
         let multipleOkAndTimeouts = [
             PingResult(seqNum: 1, latency: 1.3, timestamp: 100),
             PingResult(seqNum: 3, latency: 3.1, timestamp: 103),
@@ -184,9 +184,9 @@ final class SummarizePingResponseTests: XCTestCase {
     }
 
     func testAllTimeouts() {
-        let resultAllTimeouts = summarizePingResponse(allTimeouts, host: host)
+        let resultAllTimeouts = allTimeouts.summarize(host: host)
         let allTimeouts = [PingResult]()
-        let targetAllTimeouts = PingSummary(min: .greatestFiniteMagnitude,
+        let targetAllTimeouts = PingSummary(min: .zero,
                                             max: .zero,
                                             avg: .zero,
                                             median: .zero,
@@ -202,9 +202,9 @@ final class SummarizePingResponseTests: XCTestCase {
     }
 
     func testTimeoutDuplicates() {
-        let resultTimeoutsDuplicates = summarizePingResponse(timeoutsDuplicates, host: host)
+        let resultTimeoutsDuplicates = timeoutsDuplicates.summarize(host: host)
         let timeoutsDuplicates = [PingResult]()
-        let targetTimeoutsDuplicates = PingSummary(min: .greatestFiniteMagnitude,
+        let targetTimeoutsDuplicates = PingSummary(min: .zero,
                                             max: .zero,
                                             avg: .zero,
                                             median: .zero,
@@ -220,9 +220,9 @@ final class SummarizePingResponseTests: XCTestCase {
     }
 
     func testAllErrors() {
-        let resultAllErrors = summarizePingResponse(allErrors, host: host)
+        let resultAllErrors = allErrors.summarize(host: host)
         let allErrorsPingResult = [PingResult]()
-        let allErrorsErrorSummaries: Set<PingSummary.PingErrorSummary> = [
+        let allErrorsErrorSummaries: Set<PingSummary.ErrorSummary> = [
             .init(seqNum: 1, reason: PingError.forTestingPurposeOnly.localizedDescription),
             .init(seqNum: 2, reason: PingError.forTestingPurposeOnly.localizedDescription),
             .init(seqNum: 3, reason: PingError.forTestingPurposeOnly.localizedDescription),
@@ -230,7 +230,7 @@ final class SummarizePingResponseTests: XCTestCase {
             .init(seqNum: 5, reason: PingError.forTestingPurposeOnly.localizedDescription),
             .init(seqNum: 6, reason: PingError.forTestingPurposeOnly.localizedDescription)
         ]
-        let targetAllErrors = PingSummary(min: .greatestFiniteMagnitude,
+        let targetAllErrors = PingSummary(min: .zero,
                                             max: .zero,
                                             avg: .zero,
                                             median: .zero,
@@ -246,7 +246,7 @@ final class SummarizePingResponseTests: XCTestCase {
     }
 
     func testMixedResults() {
-        let resultMixed = summarizePingResponse(mixed, host: host)
+        let resultMixed = mixed.summarize(host: host)
         let mixedPingResults: [PingResult] = [
             PingResult(seqNum: 2, latency: 2.2, timestamp: 102),
             PingResult(seqNum: 4, latency: 1.4, timestamp: 104),
@@ -254,7 +254,7 @@ final class SummarizePingResponseTests: XCTestCase {
             PingResult(seqNum: 7, latency: 3.6, timestamp: 107),
             PingResult(seqNum: 10, latency: 5.9, timestamp: 110)
         ]
-        let mixedErrorSummaries: Set<PingSummary.PingErrorSummary> = [
+        let mixedErrorSummaries: Set<PingSummary.ErrorSummary> = [
             .init(seqNum: 3, reason: PingError.forTestingPurposeOnly.localizedDescription)
         ]
         let targetMixed = PingSummary(min: 1.4,

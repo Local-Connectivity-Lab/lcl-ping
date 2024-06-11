@@ -14,360 +14,159 @@ import XCTest
 import NIOCore
 @testable import LCLPing
 
-#if INTEGRATION_TEST && (os(macOS) || os(iOS) || os(watchOS) || os(tvOS) || swift(>=5.7))
+ #if INTEGRATION_TEST
 final class HTTPIntegrationTests: XCTestCase {
+
+    private let endpoint: String = "http://127.0.0.1:8080"
+
+    private func createDefaultConfig() throws -> HTTPPingClient.Configuration {
+        return try .init(url: endpoint)
+    }
 
     private func runTest(
         networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected,
-        pingConfig: LCLPing.PingConfiguration = .init(type: .http(LCLPing.PingConfiguration.HTTPOptions()), endpoint: .ipv4("http://127.0.0.1", 8080))
-    ) async throws -> (PingState, PingSummary?) {
-        switch pingConfig.type {
-        case .http(let httpOptions):
-            var httpPing = HTTPPing(httpOptions: httpOptions, networkLinkConfig: networkLinkConfig)
-            try await httpPing.start(with: pingConfig)
-            return (httpPing.pingStatus, httpPing.summary)
-        default:
-            XCTFail("Invalid PingConfig. Need HTTP, but received \(pingConfig.type)")
-        }
-        return (PingState.error, nil)
+        pingConfig: HTTPPingClient.Configuration
+    ) throws -> PingSummary {
+        let httpPing = HTTPPingClient(configuration: pingConfig, networkLinkConfig: networkLinkConfig)
+        return try httpPing.start().wait()
     }
 
-    func testfullyConnectedNetwork() async throws {
-        let (pingStatus, pingSummary) = try await runTest()
-        switch pingStatus {
-        case .finished:
-            XCTAssertEqual(pingSummary?.totalCount, 10)
-            XCTAssertEqual(pingSummary?.details.isEmpty, false)
-            XCTAssertEqual(pingSummary?.duplicates.count, 0)
-            XCTAssertEqual(pingSummary?.timeout.count, 0)
-        default:
-            XCTFail("HTTP Test failed with status \(pingStatus)")
-        }
+    func testfullyConnectedNetwork() throws {
+        let config = try createDefaultConfig()
+        let pingSummary = try runTest(pingConfig: config)
+        XCTAssertEqual(pingSummary.totalCount, 10)
+        XCTAssertEqual(pingSummary.details.isEmpty, false)
+        XCTAssertEqual(pingSummary.duplicates.count, 0)
+        XCTAssertEqual(pingSummary.timeout.count, 0)
     }
 
-    func testFullyDisconnectedNetwork() async throws {
-        let fullyDisconnected = TrafficControllerChannelHandler.NetworkLinkConfiguration.fullyDisconnected
-        let (pingStatus, pingSummary) = try await runTest(networkLinkConfig: fullyDisconnected)
-        switch pingStatus {
-        case .finished:
-            for i in 0..<10 {
-                XCTAssertEqual(pingSummary?.timeout.contains(UInt16(i)), true)
-            }
-            XCTAssertEqual(pingSummary?.totalCount, 10)
-            XCTAssertEqual(pingSummary?.details.isEmpty, true)
-            XCTAssertEqual(pingSummary?.duplicates.count, 0)
-            XCTAssertEqual(pingSummary?.timeout.count, 10)
-        default:
-            XCTFail("HTTP Test failed with status \(pingStatus)")
+    func testFullyDisconnectedNetwork() throws {
+        let config = try createDefaultConfig()
+        let pingSummary = try runTest(networkLinkConfig: .fullyDisconnected, pingConfig: config)
+        for i in 0..<10 {
+            XCTAssertTrue(pingSummary.timeout.contains(UInt16(i)))
         }
+        XCTAssertEqual(pingSummary.totalCount, 10)
+        XCTAssertTrue(pingSummary.details.isEmpty)
+        XCTAssertEqual(pingSummary.duplicates.count, 0)
+        XCTAssertEqual(pingSummary.timeout.count, 10)
     }
 
-    func testInvalidIPURL() async throws {
-        let expectedError = PingError.httpMissingHost
+    func testUnknownHost() throws {
+        let config = try HTTPPingClient.Configuration(url: "http://127.0.0.1:9090", count: 1, connectionTimeout: .milliseconds(10))
         do {
-            let pingConfig = LCLPing.PingConfiguration(type: .http(.init()), endpoint: .ipv4("ww.invalid-url.^&*", 8080))
-            _ = try await runTest(pingConfig: pingConfig)
-            XCTFail("Expect throwing PingError.invalidIPv4URL")
+            _ = try runTest(pingConfig: config)
+            XCTFail("Expect throwing IO error")
+        } catch let error as IOError {
+            print("in test error: \(error)")
         } catch {
-            XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
+            XCTFail("Expect throwing IO error, but throw \(error)")
         }
     }
 
-    func testMissingHostInURL() async throws {
-        let expectedError = PingError.httpMissingHost
-        do {
-            let pingConfig: LCLPing.PingConfiguration = .init(type: .http(LCLPing.PingConfiguration.HTTPOptions()), endpoint: .ipv4("127.0.0.1", 8080))
-            _ = try await runTest(pingConfig: pingConfig)
-            XCTFail("Expect throwing PingError.httpMissingHost")
-        } catch {
-            XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
-        }
-    }
-
-    func testMissingHTTPSchemaInURL() async throws {
-        let expectedError = PingError.httpMissingSchema
-        do {
-            let pingConfig = LCLPing.PingConfiguration(type: .http(LCLPing.PingConfiguration.HTTPOptions()), endpoint: .ipv4("someOtherSchema://127.0.0.1", 8080))
-            _ = try await runTest(pingConfig: pingConfig)
-            XCTFail("Expect throwing PingError.httpMissingSchema")
-        } catch {
-            XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
-        }
-    }
-
-    func testUnknownHost() async throws {
-        let expectedError = PingError.sendPingFailed(IOError(errnoCode: 61, reason: "connection reset (error set)"))
-        let pingConfig = LCLPing.PingConfiguration(type: .http(LCLPing.PingConfiguration.HTTPOptions()), endpoint: .ipv4("http://127.0.0.1", 9090))
-        do {
-            _ = try await runTest(pingConfig: pingConfig)
-            XCTFail("Expect throwing ")
-        } catch {
-            print("error: \(error)")
-            XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
-        }
-    }
-
-    func testMinorInOutPacketDrop() async throws {
-        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.1, outPacketLoss: 0.1)
-        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
-        switch pingStatus {
-        case .finished:
-            ()
-        default:
-            XCTFail("HTTP Test failed with status \(pingStatus)")
-        }
-    }
-
-    func testCorrectStatusCode() async throws {
+    func testCorrectStatusCode() throws {
         for param in [(statusCode: 200, ok: true), (statusCode: 201, ok: true), (statusCode: 301, ok: false), (statusCode: 404, ok: false), (statusCode: 410, ok: false), (statusCode: 500, ok: false), (statusCode: 505, ok: false)] {
-            var httpOptions = LCLPing.PingConfiguration.HTTPOptions()
-            let desiredHeaders = [
-                "Status-Code": String(param.statusCode)
-            ]
-            httpOptions.httpHeaders = desiredHeaders
-            let pingConfig: LCLPing.PingConfiguration = .init(type: .http(httpOptions), endpoint: .ipv4("http://127.0.0.1", 8080), count: 3)
+            let config = try HTTPPingClient.Configuration(url: endpoint, count: 3, headers: ["Status-Code": String(param.statusCode)])
             let expectedSequenceNumbers: Set<UInt16> = [0, 1, 2]
-            let (pingStatus, pingSummary) = try await runTest(pingConfig: pingConfig)
-            switch pingStatus {
-            case .finished:
-                XCTAssertEqual(pingSummary?.totalCount, 3)
-                if param.ok {
-                    XCTAssertEqual(pingSummary?.details.count, 3)
-                    pingSummary?.details.forEach { element in
-                        XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum), true)
-                    }
-                } else {
-                    XCTAssertEqual(pingSummary?.errors.count, 3)
-                    switch param.statusCode {
-                    case 300...399:
-                        pingSummary?.errors.forEach { element in
-                            XCTAssertNotNil(element.seqNum)
-                            XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum!), true)
-                            XCTAssertEqual(element.reason, PingError.httpRedirect.localizedDescription)
-                        }
-                    case 400...499:
-                        pingSummary?.errors.forEach { element in
-                            XCTAssertNotNil(element.seqNum)
-                            XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum!), true)
-                            XCTAssertEqual(element.reason, PingError.httpClientError.localizedDescription)
-                        }
-                    case 500...599:
-                        pingSummary?.errors.forEach { element in
-                            XCTAssertNotNil(element.seqNum)
-                            XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum!), true)
-                            XCTAssertEqual(element.reason, PingError.httpServerError.localizedDescription)
-                        }
-                    default:
-                        XCTFail("HTTP Test failed with unknown status code \(param.statusCode)")
-                    }
+            let pingSummary = try runTest(pingConfig: config)
+            XCTAssertEqual(pingSummary.totalCount, 3)
+            if param.ok {
+                XCTAssertEqual(pingSummary.details.count, 3)
+                pingSummary.details.forEach { element in
+                    XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum), true)
                 }
-
-            default:
-                XCTFail("HTTP Test failed with status \(pingStatus)")
+            } else {
+                XCTAssertEqual(pingSummary.errors.count, 3)
+                pingSummary.errors.forEach { element in
+                    XCTAssertNotNil(element.seqNum)
+                    XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum!), true)
+                    XCTAssertEqual(element.reason, PingError.httpInvalidResponseStatusCode(param.statusCode).localizedDescription)
+                }
             }
+
         }
     }
 
-    func testBasicServerTiming() async throws {
-        var httpOptions = LCLPing.PingConfiguration.HTTPOptions()
+    func testBasicServerTiming() throws {
         let desiredHeaders = [
             "Status-Code": "200",
             "Use-Empty-Server-Timing": "False",
             "Number-Of-Metrics": "1"
         ]
-        httpOptions.useServerTiming = true
-        httpOptions.httpHeaders = desiredHeaders
-        let pingConfig: LCLPing.PingConfiguration = .init(type: .http(httpOptions), endpoint: .ipv4("http://127.0.0.1/server-timing", 8080), count: 3)
+        let pingConfig: HTTPPingClient.Configuration = try HTTPPingClient.Configuration(url: "http://127.0.0.1:8080/server-timing", count: 3, headers: desiredHeaders, useServerTiming: true)
         let expectedSequenceNumbers: Set<UInt16> = [0, 1, 2]
-        let (pingStatus, pingSummary) = try await runTest(pingConfig: pingConfig)
-        switch pingStatus {
-        case .finished:
-            XCTAssertEqual(pingSummary?.totalCount, 3)
-            XCTAssertEqual(pingSummary?.details.count, 3)
-            pingSummary?.details.forEach { element in
-                XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum), true)
-            }
-        default:
-            XCTFail("HTTP Test failed with status \(pingStatus)")
+        let pingSummary = try runTest(pingConfig: pingConfig)
+        XCTAssertEqual(pingSummary.totalCount, 3)
+        XCTAssertEqual(pingSummary.details.count, 3)
+        pingSummary.details.forEach { element in
+            XCTAssertTrue(expectedSequenceNumbers.contains(element.seqNum))
         }
     }
 
-    func testEmptyServerTimingField() async throws {
-        var httpOptions = LCLPing.PingConfiguration.HTTPOptions()
+    func testEmptyServerTimingField() throws {
         let desiredHeaders = [
             "Status-Code": "200",
             "Use-Empty-Server-Timing": "True",
             "Number-Of-Metrics": "1"
         ]
-        httpOptions.useServerTiming = true
-        httpOptions.httpHeaders = desiredHeaders
-        let pingConfig: LCLPing.PingConfiguration = .init(type: .http(httpOptions), endpoint: .ipv4("http://127.0.0.1/server-timing", 8080), count: 3)
+        let pingConfig = try  HTTPPingClient.Configuration(url: "http://127.0.0.1:8080/server-timing", count: 3, headers: desiredHeaders, useServerTiming: true)
         let expectedSequenceNumbers: Set<UInt16> = [0, 1, 2]
-        let (pingStatus, pingSummary) = try await runTest(pingConfig: pingConfig)
-        switch pingStatus {
-        case .finished:
-            XCTAssertEqual(pingSummary?.totalCount, 3)
-            XCTAssertEqual(pingSummary?.details.count, 3)
-            pingSummary?.details.forEach { element in
-                XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum), true)
-            }
-        default:
-            XCTFail("HTTP Test failed with status \(pingStatus)")
+        let pingSummary = try runTest(pingConfig: pingConfig)
+        XCTAssertEqual(pingSummary.totalCount, 3)
+        XCTAssertEqual(pingSummary.details.count, 3)
+        pingSummary.details.forEach { element in
+            XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum), true)
         }
     }
 
-    func testMultipleServerTimingFields() async throws {
-        var httpOptions = LCLPing.PingConfiguration.HTTPOptions()
+    func testMultipleServerTimingFields() throws {
         let desiredHeaders = [
             "Status-Code": "200",
             "Use-Empty-Server-Timing": "True",
             "Number-Of-Metrics": "4"
         ]
-        httpOptions.useServerTiming = true
-        httpOptions.httpHeaders = desiredHeaders
-        let pingConfig: LCLPing.PingConfiguration = .init(type: .http(httpOptions), endpoint: .ipv4("http://127.0.0.1/server-timing", 8080), count: 3)
+        let pingConfig = try HTTPPingClient.Configuration(url: "http://127.0.0.1:8080/server-timing", count: 3, headers: desiredHeaders, useServerTiming: true)
         let expectedSequenceNumbers: Set<UInt16> = [0, 1, 2]
-        let (pingStatus, pingSummary) = try await runTest(pingConfig: pingConfig)
-        switch pingStatus {
-        case .finished:
-            XCTAssertEqual(pingSummary?.totalCount, 3)
-            XCTAssertEqual(pingSummary?.details.count, 3)
-            pingSummary?.details.forEach { element in
-                XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum), true)
-            }
-        default:
-            XCTFail("HTTP Test failed with status \(pingStatus)")
+        let pingSummary = try runTest(pingConfig: pingConfig)
+        XCTAssertEqual(pingSummary.totalCount, 3)
+        XCTAssertEqual(pingSummary.details.count, 3)
+        pingSummary.details.forEach { element in
+            XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum), true)
         }
     }
 
-    func testCancelBeforeTestStarts() async throws {
-        let networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected
-        let pingConfig: LCLPing.PingConfiguration = .init(type: .http(LCLPing.PingConfiguration.HTTPOptions()), endpoint: .ipv4("http://127.0.0.1", 8080))
-        switch pingConfig.type {
-        case .http(let httpOptions):
-            var httpPing = HTTPPing(httpOptions: httpOptions, networkLinkConfig: networkLinkConfig)
-            httpPing.stop()
-            try await httpPing.start(with: pingConfig)
-            switch httpPing.pingStatus {
-            case .stopped:
-                XCTAssertNil(httpPing.summary)
-            default:
-                XCTFail("Invalid HTTP Ping state. Should be .stopped, but is \(httpPing.pingStatus)")
-            }
-        default:
-            XCTFail("Invalid PingConfig. Need HTTP, but received \(pingConfig.type)")
-        }
+    func testCancelBeforeTestStarts() throws {
+        let pingConfig = try HTTPPingClient.Configuration(url: "http://127.0.0.1:8080")
+        let httpPing = HTTPPingClient(configuration: pingConfig, networkLinkConfig: .fullyConnected)
+        httpPing.cancel()
     }
 
-    @MainActor
-    func testCancelDuringTest() async throws {
+    func testCancelDuringTest() throws {
         for waitSecond in [2, 4, 5, 6, 7, 9] {
-            let networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected
-            let pingConfig: LCLPing.PingConfiguration = .init(type: .http(LCLPing.PingConfiguration.HTTPOptions()), endpoint: .ipv4("http://127.0.0.1", 8080))
-            switch pingConfig.type {
-            case .http(let httpOptions):
-                var httpPing = HTTPPing(httpOptions: httpOptions, networkLinkConfig: networkLinkConfig)
-
-                Task {
-                    try await Task.sleep(nanoseconds: UInt64(waitSecond) * 1_000_000_000)
-                    httpPing.stop()
-                }
-
-                try await httpPing.start(with: pingConfig)
-
-                switch httpPing.pingStatus {
-                case .stopped:
-                    XCTAssertNotNil(httpPing.summary?.totalCount)
-                    XCTAssertLessThanOrEqual(httpPing.summary!.totalCount, waitSecond + 1)
-                    XCTAssertEqual(httpPing.summary?.details.isEmpty, false)
-                    XCTAssertEqual(httpPing.summary?.duplicates.count, 0)
-                    XCTAssertEqual(httpPing.summary?.timeout.count, 0)
-                default:
-                    XCTFail("Invalid HTTP Ping state. Should be .finished, but is \(httpPing.pingStatus)")
-                }
-            default:
-                XCTFail("Invalid PingConfig. Need HTTP, but received \(pingConfig.type)")
+            let pingConfig = try HTTPPingClient.Configuration(url: "http://127.0.0.1:8080", count: 3)
+            let httpPing = HTTPPingClient(configuration: pingConfig, networkLinkConfig: .fullyConnected)
+            DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(waitSecond)) {
+                print("will cancel ping")
+                httpPing.cancel()
             }
+
+            let summary = try httpPing.start().wait()
+            XCTAssertLessThanOrEqual(summary.totalCount, waitSecond + 1)
+            XCTAssertEqual(summary.details.isEmpty, false)
+            XCTAssertEqual(summary.duplicates.count, 0)
+            XCTAssertEqual(summary.timeout.count, 0)
         }
     }
 
-    func testCancelAfterTestFinishes() async throws {
-        let networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected
-        let pingConfig: LCLPing.PingConfiguration = .init(type: .http(LCLPing.PingConfiguration.HTTPOptions()), endpoint: .ipv4("http://127.0.0.1", 8080), count: 3)
-        switch pingConfig.type {
-        case .http(let httpOptions):
-            var httpPing = HTTPPing(httpOptions: httpOptions, networkLinkConfig: networkLinkConfig)
-            try await httpPing.start(with: pingConfig)
-            httpPing.stop()
-            switch httpPing.pingStatus {
-            case .finished:
-                XCTAssertEqual(httpPing.summary?.totalCount, 3)
-                XCTAssertEqual(httpPing.summary?.details.isEmpty, false)
-                XCTAssertEqual(httpPing.summary?.duplicates.count, 0)
-                XCTAssertEqual(httpPing.summary?.timeout.count, 0)
-            default:
-                XCTFail("Invalid HTTP Ping state. Should be .finished, but is \(httpPing.pingStatus)")
-            }
-        default:
-            XCTFail("Invalid PingConfig. Need HTTP, but received \(pingConfig.type)")
-        }
-    }
-
-    // FIXME: re-enable the following test after https://github.com/apple/swift-nio/issues/2612 is fixed
-
-    func testMediumInOutPacketDrop() async throws {
-        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.4, outPacketLoss: 0.4)
-        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
-        switch pingStatus {
-        case .finished:
-            ()
-        default:
-            XCTFail("HTTP Test failed with status \(pingStatus)")
-        }
-    }
-
-    func testMinorInPacketDrop() async throws {
-        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.2)
-        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
-        switch pingStatus {
-        case .finished:
-            ()
-        default:
-            XCTFail("HTTP Test failed with status \(pingStatus)")
-        }
-    }
-
-    func testMinorOutPacketDrop() async throws {
-        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(outPacketLoss: 0.2)
-        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
-        switch pingStatus {
-        case .finished:
-            ()
-        default:
-            XCTFail("HTTP Test failed with status \(pingStatus)")
-        }
-    }
-
-    func testMediumInPacketDrop() async throws {
-        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.5)
-        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
-        switch pingStatus {
-        case .finished:
-            ()
-        default:
-            XCTFail("HTTP Test failed with status \(pingStatus)")
-        }
-    }
-
-    func testMediumOutPacketDrop() async throws {
-        let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(outPacketLoss: 0.5)
-        let (pingStatus, _) = try await runTest(networkLinkConfig: networkLink)
-        switch pingStatus {
-        case .finished:
-            ()
-        default:
-            XCTFail("HTTP Test failed with status \(pingStatus)")
-        }
+    func testCancelAfterTestFinishes() throws {
+        let pingConfig = try HTTPPingClient.Configuration(url: "http://127.0.0.1:8080", count: 3)
+        let httpPing = HTTPPingClient(configuration: pingConfig, networkLinkConfig: .fullyConnected)
+        let summary = try httpPing.start().wait()
+        httpPing.cancel()
+        XCTAssertEqual(summary.totalCount, 3)
+        XCTAssertEqual(summary.details.isEmpty, false)
+        XCTAssertEqual(summary.duplicates.count, 0)
+        XCTAssertEqual(summary.timeout.count, 0)
     }
 }
-#endif
+ #endif

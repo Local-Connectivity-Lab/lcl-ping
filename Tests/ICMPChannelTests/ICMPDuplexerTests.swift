@@ -22,13 +22,13 @@ final class ICMPDuplexerTests: XCTestCase {
     private var loop: EmbeddedEventLoop {
         return self.channel.embeddedEventLoop
     }
-    
-    private let icmpConfiguration = LCLPing.PingConfiguration(
-        type: .icmp,
+
+    private let icmpConfiguration = ICMPPingClient.Configuration(
         endpoint: .ipv4("127.0.0.1", 0),
-        timeout: 2
+        count: 1,
+        timeout: .seconds(2)
     )
-    
+
     private var resolvedAddress: SocketAddress? {
         return try? SocketAddress(ipAddress: "127.0.0.1", port: 0)
     }
@@ -45,51 +45,58 @@ final class ICMPDuplexerTests: XCTestCase {
 
     func testAddDuplexerChannelHandler() throws {
         XCTAssertNotNil(channel, "Channel should be initialized by now and but is nil")
-        
-        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: icmpConfiguration, resolvedAddress: resolvedAddress!)).wait())
+        let promise = channel!.eventLoop.makePromise(of: [PingResponse].self)
+        let handler = ICMPHandler(totalCount: 1, promise: promise)
+
+        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(resolvedAddress: resolvedAddress!, handler: handler)).wait())
         channel.pipeline.fireChannelActive()
     }
-    
+
     func testBasicOutboundWrite() throws {
-        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: self.icmpConfiguration, resolvedAddress: resolvedAddress!)).wait())
+        let promise = channel!.eventLoop.makePromise(of: [PingResponse].self)
+        let handler = ICMPHandler(totalCount: 1, promise: promise)
+        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(resolvedAddress: resolvedAddress!, handler: handler)).wait())
         channel.pipeline.fireChannelActive()
-        
-        let outboundInData: ICMPOutboundIn = (1,2)
+
+        let outboundInData: ICMPPingClient.Request = ICMPPingClient.Request(sequenceNum: 2, identifier: 1)
         try channel.writeOutbound(outboundInData)
         self.loop.run()
         let outboundOutData = try channel.readOutbound(as: AddressedEnvelope<ByteBuffer>.self)
         XCTAssertNotNil(outboundOutData)
         var data = outboundOutData!.data
         let remoteAddr = outboundOutData!.remoteAddress
-        let sent = try decodeByteBuffer(of: ICMPHeader.self, data: &data)
+        let sent = try decodeByteBuffer(of: ICMPPingClient.ICMPHeader.self, data: &data)
         XCTAssertEqual(remoteAddr, try! SocketAddress(ipAddress: "127.0.0.1", port: 0))
-        XCTAssertEqual(sent.type, ICMPType.echoRequest.rawValue)
+        XCTAssertEqual(sent.type, ICMPPingClient.ICMPType.echoRequest.rawValue)
         XCTAssertEqual(sent.code, 0)
         XCTAssertEqual(sent.idenifier, 1)
         XCTAssertEqual(sent.sequenceNum, 2)
         XCTAssertEqual(sent.payload.identifier, 1)
     }
-    
-    
+
     func testBasicInboundRead() throws {
-        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: self.icmpConfiguration, resolvedAddress: resolvedAddress!)).wait())
+        let promise = channel!.eventLoop.makePromise(of: [PingResponse].self)
+        let handler = ICMPHandler(totalCount: 1, promise: promise)
+        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(resolvedAddress: resolvedAddress!, handler: handler)).wait())
         channel.pipeline.fireChannelActive()
-        
-        let outboundInData: ICMPOutboundIn = (0xbeef, 2)
-        var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
+
+        let outboundInData: ICMPPingClient.Request = ICMPPingClient.Request(sequenceNum: 2, identifier: 0xbeef)
+        var inboundInData: ICMPPingClient.ICMPHeader = ICMPPingClient.ICMPHeader(type: ICMPPingClient.ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
         inboundInData.setChecksum()
         try channel.writeOutbound(outboundInData)
         try channel.writeInbound(inboundInData)
         self.loop.run()
-        let inboundInResult = try channel.readInbound(as: PingResponse.self)!
-        switch inboundInResult {
+
+        let inboundInResult = try promise.futureResult.wait()
+        XCTAssertEqual(inboundInResult.count, 1)
+        switch inboundInResult[0] {
         case .ok(let sequenceNum, _, _):
             XCTAssertEqual(sequenceNum, 2)
         default:
-            XCTFail("Should receive a PingResponse.ok, but received \(inboundInResult)")
+            XCTFail("Should receive a PingResponse.ok, but received \(String(describing: inboundInResult))")
         }
     }
-    
+
     func testReadFireCorrectError() {
         let inputs = [
             (3, 0, PingError.icmpDestinationNetworkUnreachable),
@@ -113,72 +120,79 @@ final class ICMPDuplexerTests: XCTestCase {
             (5, 2, PingError.icmpRedirectDatagramForTosAndNetwork),
             (5, 3, PingError.icmpRedirectDatagramForTosAndHost),
             (9, 0, PingError.icmpRouterAdvertisement),
-            (10, 0 , PingError.icmpRouterDiscoverySelectionSolicitation),
-            (11, 0 , PingError.icmpTTLExpiredInTransit),
-            (11, 1 , PingError.icmpFragmentReassemblyTimeExceeded),
-            (12, 0,  PingError.icmpPointerIndicatesError),
-            (12, 1 , PingError.icmpMissingARequiredOption),
-            (12, 2 , PingError.icmpBadLength),
+            (10, 0, PingError.icmpRouterDiscoverySelectionSolicitation),
+            (11, 0, PingError.icmpTTLExpiredInTransit),
+            (11, 1, PingError.icmpFragmentReassemblyTimeExceeded),
+            (12, 0, PingError.icmpPointerIndicatesError),
+            (12, 1, PingError.icmpMissingARequiredOption),
+            (12, 2, PingError.icmpBadLength),
             (13, 3, PingError.unknownError("Received unknown ICMP type (13) and ICMP code (3)"))
         ]
-        
+
         for input in inputs {
             let (type, code, expectedError) = input
-            var inboundInData: ICMPHeader = ICMPHeader(type: UInt8(type), code: UInt8(code), idenifier: 0xbeef, sequenceNum: 2)
-            let outboundInData: ICMPOutboundIn = (UInt16(0xbeef), UInt16(2))
+            var inboundInData: ICMPPingClient.ICMPHeader = ICMPPingClient.ICMPHeader(type: UInt8(type), code: UInt8(code), idenifier: 0xbeef, sequenceNum: 2)
+            let outboundInData: ICMPPingClient.Request = ICMPPingClient.Request(sequenceNum: 2, identifier: 0xbeef)
             inboundInData.setChecksum()
+            let promise = channel!.eventLoop.makePromise(of: [PingResponse].self)
+            let handler = ICMPHandler(totalCount: 1, promise: promise)
             do {
                 let channel = EmbeddedChannel()
                 let loop = channel.embeddedEventLoop
-                XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: self.icmpConfiguration, resolvedAddress: resolvedAddress!)).wait())
+                XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(resolvedAddress: resolvedAddress!, handler: handler)).wait())
                 channel.pipeline.fireChannelActive()
-                
+
                 try channel.writeOutbound(outboundInData)
                 try channel.writeInbound(inboundInData)
                 loop.run()
-                let inboundInResult = try channel.readInbound(as: PingResponse.self)!
-                switch inboundInResult {
+                let inboundInResult = try promise.futureResult.wait()
+                XCTAssertEqual(inboundInResult.count, 1)
+                switch inboundInResult[0] {
                 case .error(.some(let seqNum), .some(let error)):
                     XCTAssertEqual(seqNum, 2)
                     XCTAssertEqual(error.localizedDescription, expectedError.localizedDescription)
                 default:
-                    XCTFail("Should receive a PingResponse.error, but received \(inboundInResult)")
+                    XCTFail("Should receive a PingResponse.error, but received \(String(describing: inboundInResult))")
                 }
             } catch {
                 XCTFail("Test failed unexpectedly: \(error)")
             }
         }
     }
-    
+
     func testICMPResponseWithNoMatchingRequest() throws {
-        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: self.icmpConfiguration, resolvedAddress: resolvedAddress!)).wait())
+        let promise = channel!.eventLoop.makePromise(of: [PingResponse].self)
+        let handler = ICMPHandler(totalCount: 1, promise: promise)
+        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(resolvedAddress: resolvedAddress!, handler: handler)).wait())
         channel.pipeline.fireChannelActive()
-        var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
+        var inboundInData: ICMPPingClient.ICMPHeader = ICMPPingClient.ICMPHeader(type: ICMPPingClient.ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
         inboundInData.setChecksum()
         try channel.writeInbound(inboundInData)
-        self.loop.run()
-        let inboundInResult = try channel.readInbound(as: PingResponse.self)!
         let expectedError = PingError.invalidICMPResponse
-        switch inboundInResult {
-        case .error(.some(let seqNum), .some(let error)):
-            XCTAssertEqual(seqNum, 2)
+        self.loop.run()
+        do {
+            let shouldNotReceive = try promise.futureResult.wait()
+            XCTFail("Should receive a PingResponse.error, but received \(shouldNotReceive)")
+        } catch {
             XCTAssertEqual(error.localizedDescription, expectedError.localizedDescription)
-        default:
-            XCTFail("Should receive a PingResponse.error, but received \(inboundInResult)")
         }
     }
-    
+
     func testInvalidICMPChecksum() throws {
-        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: self.icmpConfiguration, resolvedAddress: resolvedAddress!)).wait())
+        let promise = channel!.eventLoop.makePromise(of: [PingResponse].self)
+        let handler = ICMPHandler(totalCount: 1, promise: promise)
+        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(resolvedAddress: resolvedAddress!, handler: handler)).wait())
         channel.pipeline.fireChannelActive()
-        let inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
-        let outboundInData: ICMPOutboundIn = (0xbeef, 2)
+        let inboundInData: ICMPPingClient.ICMPHeader = ICMPPingClient.ICMPHeader(type: ICMPPingClient.ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
+        let outboundInData: ICMPPingClient.Request = .init(sequenceNum: 2, identifier: 0xbeef)
         try channel.writeOutbound(outboundInData)
         try channel.writeInbound(inboundInData)
         self.loop.run()
-        let inboundInResult = try channel.readInbound(as: PingResponse.self)!
+        try channel.close(mode: .all).wait()
+        let inboundInResult = try promise.futureResult.wait()
         let expectedError = PingError.invalidICMPChecksum
-        switch inboundInResult {
+        XCTAssertEqual(inboundInResult.count, 1)
+        switch inboundInResult[0] {
         case .error(.some(let seqNum), .some(let error)):
             XCTAssertEqual(seqNum, 2)
             XCTAssertEqual(error.localizedDescription, expectedError.localizedDescription)
@@ -186,21 +200,24 @@ final class ICMPDuplexerTests: XCTestCase {
             XCTFail("Should receive a PingResponse.error, but received \(inboundInResult)")
         }
     }
-    
+
     // On Linux platform, idenfier is unpredictable, we skip if test is run on Linux platform
     func testInvalidICMPIdentifier() throws {
         #if canImport(Darwin)
-        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: self.icmpConfiguration, resolvedAddress: resolvedAddress!)).wait())
+        let promise = channel!.eventLoop.makePromise(of: [PingResponse].self)
+        let handler = ICMPHandler(totalCount: 1, promise: promise)
+        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(resolvedAddress: resolvedAddress!, handler: handler)).wait())
         channel.pipeline.fireChannelActive()
-        var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
+        var inboundInData: ICMPPingClient.ICMPHeader = ICMPPingClient.ICMPHeader(type: ICMPPingClient.ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
         inboundInData.setChecksum()
-        let outboundInData: ICMPOutboundIn = (0xdead, 2)
+        let outboundInData: ICMPPingClient.Request = ICMPPingClient.Request(sequenceNum: 2, identifier: 0xdead)
         try channel.writeOutbound(outboundInData)
         try channel.writeInbound(inboundInData)
         self.loop.run()
-        let inboundInResult = try channel.readInbound(as: PingResponse.self)!
+        let inboundInResult = try promise.futureResult.wait()
         let expectedError = PingError.invalidICMPIdentifier
-        switch inboundInResult {
+        XCTAssertEqual(inboundInResult.count, 1)
+        switch inboundInResult[0] {
         case .error(.some(let seqNum), .some(let error)):
             XCTAssertEqual(seqNum, 2)
             XCTAssertEqual(error.localizedDescription, expectedError.localizedDescription)
@@ -209,16 +226,24 @@ final class ICMPDuplexerTests: XCTestCase {
         }
         #endif // canImport(Darwin)
     }
-    
+
     func testICMPResponseTimeout() throws {
-        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: self.icmpConfiguration, resolvedAddress: resolvedAddress!)).wait())
+        let promise = channel!.eventLoop.makePromise(of: [PingResponse].self)
+        let handler = ICMPHandler(totalCount: 1, promise: promise)
+        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(resolvedAddress: resolvedAddress!, handler: handler)).wait())
         channel.pipeline.fireChannelActive()
-        var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
+        var inboundInData: ICMPPingClient.ICMPHeader = ICMPPingClient.ICMPHeader(type: ICMPPingClient.ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
         inboundInData.setChecksum()
-        let outboundInData: ICMPOutboundIn = (0xbeef, 2)
+        let outboundInData: ICMPPingClient.Request = .init(sequenceNum: 2, identifier: 0xbeef)
         try channel.writeOutbound(outboundInData)
+        channel.eventLoop.scheduleTask(in: .milliseconds(100)) {
+            print("timeout!")
+            handler.handleTimeout(sequenceNumber: 2)
+        }
+        self.loop.advanceTime(by: .seconds(1))
+
         let expectation = XCTestExpectation(description: "Expect PingResponse Timeout")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+        channel.eventLoop.scheduleTask(in: .milliseconds(2500)) {
             do {
                 try self.channel.writeInbound(inboundInData)
                 expectation.fulfill()
@@ -226,75 +251,86 @@ final class ICMPDuplexerTests: XCTestCase {
                 XCTFail("Should not throw any error: \(error)")
             }
         }
-        self.loop.run()
-        
+        self.loop.advanceTime(by: .seconds(3))
+
         wait(for: [expectation], timeout: 2.5)
-        let inboundInResult = try channel.readInbound(as: PingResponse.self)!
-        switch inboundInResult {
+        let inboundInResult = try promise.futureResult.wait()
+        XCTAssertEqual(inboundInResult.count, 1)
+        switch inboundInResult[0] {
         case .timeout(let seqNum):
             XCTAssertEqual(seqNum, inboundInData.sequenceNum)
         default:
             XCTFail("Should receive a PingResponse timeout, but received \(inboundInResult)")
         }
     }
-    
+
     func testICMPResponseDuplicate() throws {
-        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: self.icmpConfiguration, resolvedAddress: resolvedAddress!)).wait())
+        let promise = channel!.eventLoop.makePromise(of: [PingResponse].self)
+        let handler = ICMPHandler(totalCount: 2, promise: promise)
+        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(resolvedAddress: resolvedAddress!, handler: handler)).wait())
         channel.pipeline.fireChannelActive()
-        var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
+        var inboundInData: ICMPPingClient.ICMPHeader = ICMPPingClient.ICMPHeader(type: ICMPPingClient.ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 2)
+        var inboundInData2: ICMPPingClient.ICMPHeader = .init(type: ICMPPingClient.ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: 3)
         inboundInData.setChecksum()
-        let outboundInData: ICMPOutboundIn = (0xbeef, 2)
+        inboundInData2.setChecksum()
+        let outboundInData: ICMPPingClient.Request = .init(sequenceNum: 2, identifier: 0xbeef)
+        let outboundInData2: ICMPPingClient.Request = .init(sequenceNum: 3, identifier: 0xbeef)
         try channel.writeOutbound(outboundInData)
+        try channel.writeOutbound(outboundInData2)
         for _ in 0..<5 {
             try channel.writeInbound(inboundInData)
         }
+        try channel.writeInbound(inboundInData2)
         self.loop.run()
-        let firstInboundInResult = try channel.readInbound(as: PingResponse.self)!
-        switch firstInboundInResult {
+        let inboundInResult = try promise.futureResult.wait()
+        XCTAssertEqual(inboundInResult.count, 6)
+        switch inboundInResult[0] {
         case .ok(let seqNum, _, _):
             XCTAssertEqual(seqNum, inboundInData.sequenceNum)
         default:
-            XCTFail("Should receive a PingResponse ok, but received \(firstInboundInResult)")
+            XCTFail("Should receive a PingResponse ok, but received \(inboundInResult[0])")
         }
-        
-        for _ in 1..<5 {
-            let duplicatedInboundInResult = try channel.readInbound(as: PingResponse.self)!
-            switch duplicatedInboundInResult {
+
+        for i in 1..<5 {
+            switch inboundInResult[i] {
             case .duplicated(let seqNum):
                 XCTAssertEqual(seqNum, inboundInData.sequenceNum)
             default:
-                XCTFail("Should receive a PingResponse duplicated, but received \(duplicatedInboundInResult)")
+                XCTFail("Should receive a PingResponse duplicated, but received \(inboundInResult[i])")
             }
         }
     }
-    
+
     func testDuplexerClosedAfterFinish() throws {
-        let config = LCLPing.PingConfiguration(
-            type: .icmp,
+        let config = ICMPPingClient.Configuration(
             endpoint: .ipv4("127.0.0.1", 0),
             count: 2
         )
+        let promise = channel!.eventLoop.makePromise(of: [PingResponse].self)
+        let handler = ICMPHandler(totalCount: config.count, promise: promise)
         let resolvedAddr = try? SocketAddress(ipAddress: "127.0.0.1", port: 0)
         XCTAssertNotNil(resolvedAddr)
         let eventCounter = EventCounterHandler()
         XCTAssertNoThrow(try channel.pipeline.addHandler(eventCounter).wait())
-        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(configuration: config, resolvedAddress: resolvedAddr!)).wait())
+        XCTAssertNoThrow(try channel.pipeline.addHandler(ICMPDuplexer(resolvedAddress: resolvedAddr!, handler: handler)).wait())
         channel.pipeline.fireChannelActive()
 
         for i in 0..<2 {
-            let outboundInData: ICMPOutboundIn = (0xbeef, UInt16(i))
+            let outboundInData = ICMPPingClient.Request(sequenceNum: UInt16(i), identifier: 0xbeef)
             try channel.writeOutbound(outboundInData)
         }
         for i in 0..<2 {
-            var inboundInData: ICMPHeader = ICMPHeader(type: ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: UInt16(i))
+            var inboundInData: ICMPPingClient.ICMPHeader = ICMPPingClient.ICMPHeader(type: ICMPPingClient.ICMPType.echoReply.rawValue, code: 0, idenifier: 0xbeef, sequenceNum: UInt16(i))
             inboundInData.setChecksum()
             try channel.writeInbound(inboundInData)
         }
         self.loop.run()
-        
+        let inboundInResult = try promise.futureResult.wait()
+        try channel.close(mode: .all).wait()
+        XCTAssertEqual(inboundInResult.count, 2)
         for i in 0..<2 {
-            let inboundInResult = try channel.readInbound(as: PingResponse.self)!
-            switch inboundInResult {
+            let inboundIn = inboundInResult[i]
+            switch inboundIn {
             case .ok(let seqNum, _, _):
                 XCTAssertEqual(seqNum, UInt16(i))
             default:

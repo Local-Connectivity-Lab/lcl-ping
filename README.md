@@ -4,7 +4,7 @@
 
 ---
 
-LCLPing is a cross-platform Ping library written in Swift, and for Swift. It is designed to help streamline testing, measuring, and monitoring network reachability of a host for both the client side and server side applications and services. 
+LCLPing is a cross-platform Ping library written in Swift, and for Swift. It is designed to help streamline testing, measuring, and monitoring network reachability and latency for both the client side and server side applications and services.
 
 # LCLPing
 
@@ -12,7 +12,7 @@ LCLPing is a cross-platform Ping library written in Swift, and for Swift. It is 
 
 
 ## Requirements
-- Swift 5.9+
+- Swift 5.7+
 - macOS 10.15+, iOS 14+, Linux
 
 ## Getting Started
@@ -36,28 +36,42 @@ Then import the module to your project
 ```
 
 ### Basic Usage
+```swift
+// Reachability Test
+let isReachable = LCLPing.reachable(via: .ipv4ICMP, strategy: .multiple, host: "google.com")
+print("is reachable: \(isReachable)")
+```
 
 ```swift
-// create ping configuration for each run
-let pingConfig = LCLPing.PingConfiguration(type: pingType, endpoint: endpoint)
+// Run Ping Test
 
-// create ping options
-#if os(macOS) || os(iOS)
-let options = LCLPing.Options(verbose: verbose, useNative: useURLSession)
-#else
-let options = LCLPing.Options(verbose: verbose)
-#endif
+// create ping configuration
+let icmpConfig = ICMPPingClient.Configuration(endpoint: .ipv4("127.0.0.1", 0), count: 1)
+let httpConfig = try HTTPPingClient.Configuration(url: "http://127.0.0.1:8080", count: 1)
 
-// initialize ping object with the options
-var ping = LCLPing(options: options)
+// initialize test client
+let icmpClient = LCLPing(pingType: .icmp(icmpConfig))
+let httpClient = LCLPing(pingType: .http(httpConfig))
 
-try await ping.start(pingConfiguration: pingConfig)
-switch ping.status {
-case .error, .ready, .running:
-    // handle error here
-case .stopped, .finished:
-    // retrieve ping summary
-    print(ping.summary)
+do {
+    // run the test using SwiftNIO EventLoopFuture
+    let result = try icmpClient.start().whenComplete { res in
+        switch (res) {
+        case .success(let summary):
+            print(summary)
+        case .failure(let error):
+            print(error)
+        }
+    }
+} catch {
+    print("received: \(error)")
+}
+
+do {
+    let result = try httpClient.start().wait()
+    print(result)
+} catch {
+    print("received: \(error)")
 }
 ```
 
@@ -65,8 +79,9 @@ You can also run the [demo](/Sources/Demo/README.md) using `make demo` or `swift
 
 ### Features
 - Ping via ICMP and HTTP(S)
-- Support IPv4 
-- flexible and configurable wait time, time-to-live, count, and duration
+- Support IPv4 ICMP and IPv4 and IPv6 for HTTP
+- Flexible and configurable wait time, time-to-live, count, and duration
+- Supports parsing Server-Timing in the HTTP header to account for time taken by server processing
 
 
 ## Contributing

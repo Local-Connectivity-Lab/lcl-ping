@@ -12,8 +12,18 @@
 
 import Foundation
 
+/// The result from each individual ping test.
+///
+/// `PingResult` represents the latency for each request/response pair
+/// identified by its sequence number.
 public struct PingResult: Equatable, Encodable {
+
+    /// The sequence number that this `PingResult` represents.
     public let seqNum: UInt16
+
+    /// The latency for the ping test.
     public let latency: Double
+
+    /// The timestamp that marks when the ping test finishes.
     public let timestamp: TimeInterval
 }
