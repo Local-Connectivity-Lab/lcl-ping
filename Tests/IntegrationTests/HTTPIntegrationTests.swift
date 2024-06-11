@@ -53,7 +53,6 @@ final class HTTPIntegrationTests: XCTestCase {
     }
 
     func testUnknownHost() throws {
-        let expectedError = IOError(errnoCode: 61, reason: "connection reset (error set)")
         let config = try HTTPPingClient.Configuration(url: "http://127.0.0.1:9090", count: 1, connectionTimeout: .milliseconds(10))
         do {
             _ = try runTest(pingConfig: config)
