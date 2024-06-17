@@ -26,12 +26,12 @@ public func reachable(via method: PingType, host: String) throws -> Bool {
 /// A simple majority of the successful test could be considered as reachable
 ///
 /// - Parameters:
-///     - via:  the `ReachabilityTestMethod` that will be used to run the reachability tes
+///     - via:  the `ReachabilityTestMethod` that will be used to run the reachability test
 ///     - strategy: the `TestStrategy` that indicates how many times the `LCLPing` should run to make the result reliable
 ///     - host: the endpoint host
 public func reachable(via method: PingType,
-                             strategy: TestStrategy,
-                             host: String
+                      strategy: TestStrategy,
+                      host: String
 ) throws -> Bool {
     switch method {
     case .http:
@@ -53,7 +53,7 @@ public enum TestStrategy {
     case extended
 
     // TODO: need to support continuous, stream of testing
-//        case continuous
+    // case continuous
 
     var count: Int {
         switch self {
@@ -66,7 +66,6 @@ public enum TestStrategy {
         }
     }
 }
-
 
 extension PingSummary {
     /// Check if ping summary has a simple majority of successful results.
