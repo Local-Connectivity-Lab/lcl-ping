@@ -39,31 +39,25 @@ Then import the module to your project
 ### Basic Usage
 ```swift
 // Reachability Test
-let isReachable = LCLPing.reachable(via: .ipv4ICMP, strategy: .multiple, host: "google.com")
+let isReachable = LCLPing.reachable(via: .icmp, strategy: .multiple, host: "google.com")
 print("is reachable: \(isReachable)")
 ```
 
 ```swift
 // Run Ping Test
 
-// create ping configuration
+// create ping configuration for each run
 let icmpConfig = ICMPPingClient.Configuration(endpoint: .ipv4("127.0.0.1", 0), count: 1)
 let httpConfig = try HTTPPingClient.Configuration(url: "http://127.0.0.1:8080", count: 1)
 
 // initialize test client
-let icmpClient = LCLPing(pingType: .icmp(icmpConfig))
-let httpClient = LCLPing(pingType: .http(httpConfig))
+let icmpClient = ICMPPingClient(configuration: icmpConfig)
+let httpClient = HTTPPingClient(configuration: httpConfig)
 
 do {
     // run the test using SwiftNIO EventLoopFuture
-    let result = try icmpClient.start().whenComplete { res in
-        switch (res) {
-        case .success(let summary):
-            print(summary)
-        case .failure(let error):
-            print(error)
-        }
-    }
+    let result = try icmpClient.start().wait()
+    print(result)
 } catch {
     print("received: \(error)")
 }

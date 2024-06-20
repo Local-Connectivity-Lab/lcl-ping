@@ -19,8 +19,8 @@ let icmpConfig = ICMPPingClient.Configuration(endpoint: .ipv4("127.0.0.1", 0), c
 let httpConfig = try HTTPPingClient.Configuration(url: "http://127.0.0.1:8080", count: 1)
 
 // initialize test client
-let icmpClient = LCLPing(pingType: .icmp(icmpConfig))
-let httpClient = LCLPing(pingType: .http(httpConfig))
+let icmpClient = ICMPPingClient(configuration: icmpConfig)
+let httpClient = HTTPPingClient(configuration: httpConfig)
 
 do {
     // run the test using SwiftNIO EventLoopFuture
