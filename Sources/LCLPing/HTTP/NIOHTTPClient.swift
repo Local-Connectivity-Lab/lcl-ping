@@ -24,7 +24,7 @@ final class NIOHTTPClient: Pingable {
 
     private var state: PingState
     private var channels: NIOLockedValueBox<[Channel]>
-    private var responses: [PingResponse]
+    private var responses: NIOLockedValueBox<[PingResponse]>
     private var resolvedAddress: SocketAddress?
     private let stateLock = NIOLock()
 
@@ -42,7 +42,7 @@ final class NIOHTTPClient: Pingable {
         self.state = .ready
         self.configuration = configuration
         self.channels = .init([])
-        self.responses = [PingResponse]()
+        self.responses = .init([])
     }
 
     #if INTEGRATION_TEST
@@ -100,9 +100,11 @@ final class NIOHTTPClient: Pingable {
                         }
                         switch res {
                         case .success(let response):
-                            self.responses.append(response)
-                            if self.responses.count == self.configuration.count {
-                                self.resultPromise.succeed(self.responses.summarize(host: resolvedAddress))
+                            self.responses.withLockedValue {
+                                $0.append(response)
+                                if $0.count == self.configuration.count {
+                                    self.resultPromise.succeed($0.summarize(host: resolvedAddress))
+                                }
                             }
                         case .failure(let error):
                             self.resultPromise.fail(error)
@@ -140,7 +142,9 @@ final class NIOHTTPClient: Pingable {
                     self.resultPromise.fail(PingError.httpMissingHost)
                     return
                 }
-                self.resultPromise.succeed(self.responses.summarize(host: resolvedAddress))
+                self.responses.withLockedValue {
+                    self.resultPromise.succeed($0.summarize(host: resolvedAddress))
+                }
                 shutdown()
             case .error:
                 logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when HTTP Client is in error state.")
@@ -207,12 +211,6 @@ final class NIOHTTPClient: Pingable {
                 }
             }
             logger.debug("Shutdown!")
-        }
-        
-        self.eventLoopGroup.shutdownGracefully { error in
-            if let error = error {
-                logger.error("Cannot shut down event loop group gracefully: \(error)")
-            }
         }
     }
 }

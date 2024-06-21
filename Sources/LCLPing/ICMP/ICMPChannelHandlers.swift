@@ -41,10 +41,10 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
     private var handler: ICMPHandler
     private var timer: [UInt16: Scheduled<Void>]
 
-    init(configuration: ICMPPingClient.Configuration, resolvedAddress: SocketAddress, promise: EventLoopPromise<[PingResponse]>) {
+    init(configuration: ICMPPingClient.Configuration, promise: EventLoopPromise<[PingResponse]>) {
         self.state = .inactive
         self.configuration = configuration
-        self.resolvedAddress = resolvedAddress
+        self.resolvedAddress = self.configuration.resolvedAddress
         self.timer = [:]
         self.handler = ICMPHandler(totalCount: self.configuration.count, promise: promise)
     }

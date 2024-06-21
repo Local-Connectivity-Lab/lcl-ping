@@ -42,7 +42,7 @@ extension LCLPing {
             let result = try client.start().wait()
             return result.isSimpleMajority()
         case .ipv4ICMP:
-            let icmpConfig = ICMPPingClient.Configuration(endpoint: .ipv4(host, 0), count: strategy.count)
+            let icmpConfig = try ICMPPingClient.Configuration(endpoint: .ipv4(host, 0), count: strategy.count)
             let client = ICMPPingClient(configuration: icmpConfig)
             let result = try client.start().wait()
             return result.isSimpleMajority()

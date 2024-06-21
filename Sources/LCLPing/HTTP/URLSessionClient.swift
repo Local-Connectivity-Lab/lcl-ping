@@ -13,6 +13,7 @@
 #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
 import Foundation
 #else
+import Foundation
 import FoundationNetworking
 #endif
 import NIOCore

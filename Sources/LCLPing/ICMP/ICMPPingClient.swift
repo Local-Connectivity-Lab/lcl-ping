@@ -61,13 +61,12 @@ public final class ICMPPingClient: Pingable {
     }
 
     public func start() -> EventLoopFuture<PingSummary> {
-        let resolvedAddress = self.configuration.endpoint.resolvedAddress!
         return self.stateLock.withLock {
             switch self.state {
             case .ready:
                 self.state = .running
 
-                return self.connect(to: resolvedAddress).flatMap { channel in
+                return self.connect(to: self.configuration.resolvedAddress).flatMap { channel in
                     self.channel = channel
                     channel.closeFuture.whenComplete { result in
                         switch result {
@@ -94,7 +93,7 @@ public final class ICMPPingClient: Pingable {
                     }
 
                     return self.promise.futureResult.flatMap { pingResponse in
-                        let summary = pingResponse.summarize(host: resolvedAddress)
+                        let summary = pingResponse.summarize(host: self.configuration.resolvedAddress)
                         self.stateLock.withLockVoid {
                             self.state = .finished
                         }
@@ -134,10 +133,10 @@ public final class ICMPPingClient: Pingable {
     }
 
     private func connect(to address: SocketAddress) -> EventLoopFuture<Channel> {
-        return makeBootstrap(address).connect(to: address)
+        return makeBootstrap().connect(to: address)
     }
 
-    private func makeBootstrap(_ resolvedAddress: SocketAddress) -> DatagramBootstrap {
+    private func makeBootstrap() -> DatagramBootstrap {
         return DatagramBootstrap(group: self.eventLoopGroup)
             .protocolSubtype(.init(.icmp))
             .channelInitializer { channel in
@@ -150,13 +149,13 @@ public final class ICMPPingClient: Pingable {
                     InboundHeaderRewriter<AddressedEnvelope<ByteBuffer>>(rewriteHeaders: self.rewriteHeaders),
                     IPDecoder(),
                     ICMPDecoder(),
-                    ICMPDuplexer(configuration: self.configuration, resolvedAddress: resolvedAddress, promise: self.promise)
+                    ICMPDuplexer(configuration: self.configuration, promise: self.promise)
                 ]
                 #else
                 let handlers: [ChannelHandler] = [
                     IPDecoder(),
                     ICMPDecoder(),
-                    ICMPDuplexer(configuration: self.configuration, resolvedAddress: resolvedAddress, promise: self.promise)
+                    ICMPDuplexer(configuration: self.configuration, promise: self.promise)
                 ]
                 #endif
                 do {
@@ -179,18 +178,14 @@ public final class ICMPPingClient: Pingable {
                 logger.error("Cannot close channel: \(error)")
             }
         }
-        
-        self.eventLoopGroup.shutdownGracefully { error in
-            if let error = error {
-                logger.error("Cannot shut down eventloop gracefully: \(error)")
-            }
-        }
     }
 }
 
 extension ICMPPingClient {
 
     /// The configuration that will be used to configure the ICMP Ping Client.
+    ///
+    /// - Throws:a SocketAddressError.unknown if we could not resolve the host, or SocketAddressError.unsupported if the address itself is not supported (yet).
     public struct Configuration {
         /// The target host that LCLPing will send the Ping request to
         public let endpoint: EndpointTarget
@@ -207,17 +202,25 @@ extension ICMPPingClient {
         /// Time, in second, to wait for a reply for each packet sent. Default is 1s.
         public var timeout: TimeAmount
 
+        public let resolvedAddress: SocketAddress
+
         public init(endpoint: EndpointTarget,
                     count: Int = 10,
                     interval: TimeAmount = .seconds(1),
                     timeToLive: UInt8 = 64,
                     timeout: TimeAmount = .seconds(1)
-        ) {
+        ) throws {
             self.endpoint = endpoint
             self.count = count
             self.interval = interval
             self.timeToLive = timeToLive
             self.timeout = timeout
+            switch self.endpoint {
+            case .ipv4(let addr, let port):
+                self.resolvedAddress = try SocketAddress.makeAddressResolvingHost(addr, port: port ?? 0)
+            case .ipv6(let addr, let port):
+                self.resolvedAddress = try SocketAddress.makeAddressResolvingHost(addr, port: port ?? 0)
+            }
         }
     }
 
@@ -225,16 +228,5 @@ extension ICMPPingClient {
     public enum EndpointTarget {
         case ipv4(String, Int?)
         case ipv6(String, Int?)
-
-        /// the resolved address given the string representation of the endpoint target.
-        /// If the address or port cannot be resolved, then `resolvedAddress` will be nil.
-        var resolvedAddress: SocketAddress? {
-            switch self {
-            case .ipv4(let addr, let port):
-                return try? SocketAddress.makeAddressResolvingHost(addr, port: port ?? 0)
-            case .ipv6(let addr, let port):
-                return try? SocketAddress.makeAddressResolvingHost(addr, port: port ?? 0)
-            }
-        }
     }
 }

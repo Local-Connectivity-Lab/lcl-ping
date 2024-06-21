@@ -15,7 +15,7 @@ import Foundation
 import LCLPing
 
 // create ping configuration for each run
-let icmpConfig = ICMPPingClient.Configuration(endpoint: .ipv4("127.0.0.1", 0), count: 1)
+let icmpConfig = try ICMPPingClient.Configuration(endpoint: .ipv4("127.0.0.1", 0), count: 1)
 let httpConfig = try HTTPPingClient.Configuration(url: "http://127.0.0.1:8080", count: 1)
 
 // initialize test client

@@ -76,10 +76,6 @@ public final class HTTPPingClient: Pingable {
     }
 #endif
 
-    deinit {
-        self.shutdown()
-    }
-
     public func start() throws -> EventLoopFuture<PingSummary> {
         return try self.state.withLockedValue { state in
             switch state {
@@ -107,15 +103,6 @@ public final class HTTPPingClient: Pingable {
                 self.pingClient.cancel()
             case .canceled:
                 logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when HTTP Client is in canceled state.")
-            }
-        }
-    }
-
-    private func shutdown() {
-        logger.info("Shutting down HTTPPing Client")
-        self.eventLoopGroup.shutdownGracefully { error in
-            if let error = error {
-                logger.error("Cannot shut down eventloop gracefully: \(error)")
             }
         }
     }
@@ -179,7 +166,8 @@ extension HTTPPingClient {
         /// The HTTP header that will be included in the HTTP request.
         public let httpHeaders: HTTPHeaders
 
-        public var resolvedAddress: SocketAddress
+        /// The DNS-resolved address according to the URL endpoint
+        public let resolvedAddress: SocketAddress
 
         /// Initialize a HTTP Ping Client `Configuration`.
         ///
@@ -196,7 +184,7 @@ extension HTTPPingClient {
         ///     - Throws:
         ///         - httpMissingHost: if URL does not include any host information.
         ///         - httpMissingSchema: if URL does not include any valid schema.
-        ///         -
+        ///         - a SocketAddressError.unknown if we could not resolve the host, or SocketAddressError.unsupported if the address itself is not supported (yet).
         public init(url: URL,
                     count: Int = 10,
                     readTimeout: TimeAmount = .seconds(1),
@@ -258,7 +246,7 @@ extension HTTPPingClient {
         ///     - Throws:
         ///         - httpMissingHost: if URL does not include any host information.
         ///         - httpMissingSchema: if URL does not include any valid schema.
-        ///
+        ///         - a SocketAddressError.unknown if we could not resolve the host, or SocketAddressError.unsupported if the address itself is not supported (yet).
         public init(url: String,
                     count: Int = 10,
                     readTimeout: TimeAmount = .seconds(1),
@@ -288,7 +276,7 @@ extension HTTPPingClient {
         ///     - Throws:
         ///         - httpMissingHost: if URL does not include any host information.
         ///         - httpMissingSchema: if URL does not include any valid schema.
-        ///
+        ///         - a SocketAddressError.unknown if we could not resolve the host, or SocketAddressError.unsupported if the address itself is not supported (yet).
         public init(url: String) throws {
             guard let urlObj = URL(string: url) else {
                 throw PingError.invalidURL(url)
