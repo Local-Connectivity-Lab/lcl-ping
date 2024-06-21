@@ -135,14 +135,15 @@ final class ICMPHandler: PingHandler {
     typealias Response = ICMPPingClient.ICMPHeader
 
     private let totalCount: Int
+
     // sequence number to ICMP request
-    private var seqToRequest: [UInt16: ICMPPingClient.ICMPHeader]
+    private var seqToRequest: [Int: ICMPPingClient.ICMPHeader]
 
     // sequence number to an optional ICMP response
-    private var seqToResponse: [UInt16: ICMPPingClient.ICMPHeader?]
+    private var seqToResponse: [Int: ICMPPingClient.ICMPHeader?]
 
     // a set that contains the response sequence number received by the handler
-    private var responseSeqNumSet: Set<UInt16>
+    private var responseSeqNumSet: Set<Int>
 
     // a list of `PingResponse`
     private var result: [PingResponse]
@@ -162,7 +163,7 @@ final class ICMPHandler: PingHandler {
     func handleRead(response: ICMPPingClient.ICMPHeader) {
         let type = response.type
         let code = response.code
-        let sequenceNum = response.sequenceNum
+        let sequenceNum = Int(response.sequenceNum)
         let identifier = response.idenifier
 
         logger.debug("[[\(#fileID)][\(#line)][\(#function)]: received icmp response with type: \(type), code: \(code), sequence number: \(sequenceNum), identifier: \(identifier)")
@@ -329,10 +330,10 @@ final class ICMPHandler: PingHandler {
     }
 
     func handleWrite(request: ICMPPingClient.ICMPHeader) {
-        self.seqToRequest[request.sequenceNum] = request
+        self.seqToRequest[Int(request.sequenceNum)] = request
     }
 
-    func handleTimeout(sequenceNumber: UInt16) {
+    func handleTimeout(sequenceNumber: Int) {
         if !self.responseSeqNumSet.contains(sequenceNumber) {
             logger.debug("[\(#fileID)][\(#line)][\(#function)]: #\(sequenceNumber) timed out")
             self.responseSeqNumSet.insert(sequenceNumber)
@@ -346,7 +347,7 @@ final class ICMPHandler: PingHandler {
         self.icmpPingPromise.fail(error)
     }
 
-    func handleError(sequenceNum: UInt16?, error: Error) {
+    func handleError(sequenceNum: Int?, error: Error) {
         self.result.append(.error(sequenceNum, error))
     }
 

@@ -40,8 +40,7 @@ final class HTTPTracingHandlerTests: XCTestCase {
             readTimeout: .seconds(10)
         )
         let promise = self.channel.eventLoop.makePromise(of: PingResponse.self)
-        let handler = HTTPHandler(promise: promise)
-        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, handler: handler)).wait())
+        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, promise: promise)).wait())
         channel.pipeline.fireChannelActive()
         promise.fail(PingError.forTestingPurposeOnly)
     }
@@ -53,8 +52,7 @@ final class HTTPTracingHandlerTests: XCTestCase {
             readTimeout: .seconds(10)
         )
         let promise = self.channel.eventLoop.makePromise(of: PingResponse.self)
-        let handler = HTTPHandler(promise: promise)
-        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, handler: handler)).wait())
+        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, promise: promise)).wait())
         channel.pipeline.fireChannelActive()
         let request = config.makeHTTPRequest(for: 2)
         try channel.writeOutbound(request)
@@ -82,8 +80,7 @@ final class HTTPTracingHandlerTests: XCTestCase {
             readTimeout: .seconds(10)
         )
         let promise = self.channel.eventLoop.makePromise(of: PingResponse.self)
-        let handler = HTTPHandler(promise: promise)
-        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, handler: handler)).wait())
+        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, promise: promise)).wait())
         channel.pipeline.fireChannelActive()
         let httpRequest = config.makeHTTPRequest(for: 2)
         try channel.writeOutbound(httpRequest)
@@ -110,8 +107,7 @@ final class HTTPTracingHandlerTests: XCTestCase {
         let promise = self.channel.eventLoop.makePromise(of: PingResponse.self)
         let eventCounter = EventCounterHandler()
         XCTAssertNoThrow(try channel.pipeline.addHandler(eventCounter).wait())
-        let handler = HTTPHandler(promise: promise)
-        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, handler: handler)).wait())
+        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, promise: promise)).wait())
 
         channel.pipeline.fireChannelActive()
         let head = HTTPClientResponsePart.head(HTTPResponseHead(version: .http1_1, status: .ok))
@@ -138,7 +134,7 @@ final class HTTPTracingHandlerTests: XCTestCase {
             readTimeout: .seconds(2)
         )
 
-        let pairs: [(UInt16, HTTPResponseStatus, Int)] = [
+        let pairs: [(Int, HTTPResponseStatus, Int)] = [
             (1, .ok, 200),
             (2, .movedPermanently, 301),
             (3, .badRequest, 400),
@@ -158,8 +154,7 @@ final class HTTPTracingHandlerTests: XCTestCase {
             channel = EmbeddedChannel()
             let (seqNum, responseStatus, responseCode) = pair
             let promise = self.channel.eventLoop.makePromise(of: PingResponse.self)
-            let handler = HTTPHandler(promise: promise)
-            XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, handler: handler)).wait())
+            XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, promise: promise)).wait())
             channel.pipeline.fireChannelActive()
             let httpRequest = config.makeHTTPRequest(for: seqNum)
             let httpResponseHead = HTTPClientResponsePart.head(.init(version: .http1_1, status: responseStatus))
@@ -207,7 +202,7 @@ final class HTTPTracingHandlerTests: XCTestCase {
             useServerTiming: true
         )
 
-        let parameters: [(UInt16, HTTPHeaders, Double)] = [
+        let parameters: [(Int, HTTPHeaders, Double)] = [
             (1, [:], estimatedServerTiming),
             (2, ["Server-Timing": "cpu;dur=2.4"], 2.4),
             (3, ["Server-Timing": "db;dur=36.4, app;dur=47.2"], 83.6),
@@ -221,8 +216,7 @@ final class HTTPTracingHandlerTests: XCTestCase {
             let (seqNum, httpHeader, serverTiming) = parameter
             let httpRequest = config.makeHTTPRequest(for: seqNum)
             let promise = self.channel.eventLoop.makePromise(of: PingResponse.self)
-            let handler = HTTPHandler(useServerTiming: config.useServerTiming, promise: promise)
-            XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, handler: handler)).wait())
+            XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, promise: promise)).wait())
             channel.pipeline.fireChannelActive()
             let httpResponseHead = HTTPClientResponsePart.head(.init(version: .http1_1, status: .ok, headers: httpHeader))
             try channel.writeOutbound(httpRequest)
@@ -251,8 +245,7 @@ final class HTTPTracingHandlerTests: XCTestCase {
             readTimeout: .seconds(1)
         )
         let promise = self.channel.eventLoop.makePromise(of: PingResponse.self)
-        let handler = HTTPHandler(promise: promise)
-        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, handler: handler)).wait())
+        XCTAssertNoThrow(try self.channel.pipeline.addHandler(HTTPTracingHandler(configuration: config, promise: promise)).wait())
         channel.pipeline.fireChannelActive()
         let httpRequest = config.makeHTTPRequest(for: 1)
         let exp = XCTestExpectation(description: "Read Tiemout")

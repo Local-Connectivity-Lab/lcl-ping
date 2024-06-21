@@ -20,7 +20,7 @@ let LOGGER_LABEL = "org.seattlecommunitynetwork.lclping"
 var logger: Logger {
     get {
         var logger = Logger(label: LOGGER_LABEL)
-    #if LOG
+    #if DEBUG
         logger.logLevel = .debug
     #else // !LOG
         logger.logLevel = .info

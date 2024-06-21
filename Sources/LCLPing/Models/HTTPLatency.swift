@@ -33,7 +33,7 @@ internal struct HTTPLatency {
     var state: HTTPLatency.State
 
     /// The sequence number of the request related to this `HTTPLatency`.
-    var seqNum: UInt16
+    var seqNum: Int
 
     init(latencyStatus: HTTPLatency.State = .waiting) {
         self.state = latencyStatus

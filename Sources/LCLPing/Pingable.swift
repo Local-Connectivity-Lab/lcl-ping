@@ -19,7 +19,7 @@ import NIOCore
 
     The implementer of this protocol needs to support 
         - initiating the ping test with a ping configuration, 
-        - stop the test if the test is being cancelled,
+        - stop the test if the test is being canceled,
 */
 protocol Pingable {
 

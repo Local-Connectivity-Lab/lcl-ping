@@ -23,7 +23,6 @@ public final class ICMPPingClient: Pingable {
     private let eventLoopGroup: EventLoopGroup
     private var state: PingState
     private let configuration: Configuration
-    private var handler: ICMPHandler
     private var channel: Channel?
     private var promise: EventLoopPromise<[PingResponse]>
 
@@ -45,7 +44,6 @@ public final class ICMPPingClient: Pingable {
         self.state = .ready
         self.configuration = configuration
         self.promise = self.eventLoopGroup.next().makePromise(of: [PingResponse].self)
-        self.handler = ICMPHandler(totalCount: self.configuration.count, promise: promise)
     }
 
     #if INTEGRATION_TEST
@@ -74,13 +72,16 @@ public final class ICMPPingClient: Pingable {
                     channel.closeFuture.whenComplete { result in
                         switch result {
                         case .success:
-                            self.handler.reset()
+                            ()
                         case .failure:
-                            self.state = .error
+                            self.stateLock.withLockVoid {
+                                self.state = .error
+                            }
                         }
                     }
 
                     for cnt in 0..<self.configuration.count {
+                        logger.debug("Scheduled #\(cnt) request")
                         channel.eventLoop.scheduleTask(in: cnt * self.configuration.interval) {
                             channel.write(
                                 ICMPPingClient.Request(
@@ -114,18 +115,18 @@ public final class ICMPPingClient: Pingable {
         self.stateLock.withLockVoid {
             switch self.state {
             case .ready:
-                self.state = .cancelled
+                self.state = .canceled
                 self.promise.fail(PingError.taskIsCancelled)
-                logger.debug("shut down => from ready state")
+                logger.debug("cancel from ready state")
                 shutdown()
             case .running:
-                self.state = .cancelled
-                logger.debug("shut down => from running state")
+                self.state = .canceled
+                logger.debug("cancel from running state")
                 shutdown()
             case .error:
                 logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in error state.")
-            case .cancelled:
-                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in cancelled state.")
+            case .canceled:
+                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in canceled state.")
             case .finished:
                 logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when test is finished.")
             }
@@ -149,13 +150,13 @@ public final class ICMPPingClient: Pingable {
                     InboundHeaderRewriter<AddressedEnvelope<ByteBuffer>>(rewriteHeaders: self.rewriteHeaders),
                     IPDecoder(),
                     ICMPDecoder(),
-                    ICMPDuplexer(resolvedAddress: resolvedAddress, handler: self.handler)
+                    ICMPDuplexer(configuration: self.configuration, resolvedAddress: resolvedAddress, promise: self.promise)
                 ]
                 #else
                 let handlers: [ChannelHandler] = [
                     IPDecoder(),
                     ICMPDecoder(),
-                    ICMPDuplexer(resolvedAddress: resolvedAddress, handler: self.handler)
+                    ICMPDuplexer(configuration: self.configuration, resolvedAddress: resolvedAddress, promise: self.promise)
                 ]
                 #endif
                 do {
@@ -171,10 +172,17 @@ public final class ICMPPingClient: Pingable {
     }
 
     private func shutdown() {
+        logger.info("Shutting down ICMPPing Client")
         if let channel = self.channel, channel.isActive {
             logger.debug("shut down icmp ping client")
             self.channel?.close(mode: .all).whenFailure { error in
-                logger.debug("Cannot close channel: \(error)")
+                logger.error("Cannot close channel: \(error)")
+            }
+        }
+        
+        self.eventLoopGroup.shutdownGracefully { error in
+            if let error = error {
+                logger.error("Cannot shut down eventloop gracefully: \(error)")
             }
         }
     }

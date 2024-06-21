@@ -19,7 +19,7 @@ import Foundation
 public struct PingResult: Equatable, Encodable {
 
     /// The sequence number that this `PingResult` represents.
-    public let seqNum: UInt16
+    public let seqNum: Int
 
     /// The latency for the ping test.
     public let latency: Double

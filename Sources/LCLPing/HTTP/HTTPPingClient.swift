@@ -13,24 +13,27 @@
 import Foundation
 import NIOCore
 import NIO
+import NIOPosix
 import NIOHTTP1
 import NIOSSL
 import NIOConcurrencyHelpers
 
-/// The Ping client that initiates ping test via the ICMP protocol.
-/// Caller needs to provide a configuration that set the way the ICMP client initiates tests.
-/// Caller can also cancel the test via `cancel()`.
+/// The Ping client that initiates ping test via the HTTP protocol.
+/// Caller needs to provide a configuration that set the way the HTTP client initiates tests.
+/// Caller can cancel the test via `cancel()`.
 public final class HTTPPingClient: Pingable {
 
-    private let eventLoopGroup: EventLoopGroup
-    private var state: PingState
-    private let configuration: Configuration
-    private var channels: NIOLockedValueBox<[Channel]>
-    private var resultPromise: EventLoopPromise<PingSummary>
-    private var responses: [PingResponse]
-    private var resolvedAddress: SocketAddress?
+    private enum State {
+        case idle
+        case running
+        case canceled
+    }
 
-    private let stateLock = NIOLock()
+    private let eventLoopGroup: EventLoopGroup
+    private var state: NIOLockedValueBox<State>
+    private let configuration: Configuration
+    private var resultPromise: EventLoopPromise<PingSummary>
+    private let pingClient: any Pingable
 
     #if INTEGRATION_TEST
     private var networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration?
@@ -39,177 +42,81 @@ public final class HTTPPingClient: Pingable {
     public init(eventLoopGroup: EventLoopGroup = MultiThreadedEventLoopGroup.singletonMultiThreadedEventLoopGroup,
                 configuration: Configuration) {
         self.eventLoopGroup = eventLoopGroup
-        self.state = .ready
+        self.state = .init(.idle)
         self.configuration = configuration
-        self.channels = .init([])
-        self.resultPromise = self.eventLoopGroup.any().makePromise(of: PingSummary.self)
-        self.responses = [PingResponse]()
+        self.resultPromise = self.eventLoopGroup.next().makePromise(of: PingSummary.self)
+        if self.configuration.useURLSession {
+            self.pingClient = URLSessionClient(config: self.configuration, socketAddress: self.configuration.resolvedAddress, promise: self.resultPromise)
+        } else {
+            #if INTEGRATION_TEST
+            self.pingClient = NIOHTTPClient(eventLoopGroup: self.eventLoopGroup, configuration: self.configuration, resolvedAddress: self.configuration.resolvedAddress, networkLinkConfig: self.networkLinkConfig, promise: self.resultPromise)
+            #else
+            self.pingClient = NIOHTTPClient(eventLoopGroup: self.eventLoopGroup, configuration: self.configuration, resolvedAddress: self.configuration.resolvedAddress, promise: self.resultPromise)
+            #endif
+        }
     }
 
-    #if INTEGRATION_TEST
-    convenience init(configuration: Configuration,
-                     networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration) {
-        self.init(configuration: configuration)
+#if INTEGRATION_TEST
+    init(configuration: Configuration,
+         networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration) {
+        self.eventLoopGroup = MultiThreadedEventLoopGroup.singleton
+        self.state = .init(.idle)
+        self.configuration = configuration
+        self.resultPromise = self.eventLoopGroup.next().makePromise(of: PingSummary.self)
         self.networkLinkConfig = networkLinkConfig
+        if self.configuration.useURLSession {
+            self.pingClient = URLSessionClient(config: self.configuration, socketAddress: self.configuration.resolvedAddress, promise: self.resultPromise)
+        } else {
+            #if INTEGRATION_TEST
+            self.pingClient = NIOHTTPClient(eventLoopGroup: self.eventLoopGroup, configuration: self.configuration, resolvedAddress: self.configuration.resolvedAddress, networkLinkConfig: self.networkLinkConfig, promise: self.resultPromise)
+            #else
+            self.pingClient = NIOHTTPClient(eventLoopGroup: self.eventLoopGroup, configuration: self.configuration, resolvedAddress: self.configuration.resolvedAddress, promise: self.resultPromise)
+            #endif
+        }
     }
-    #endif
+#endif
 
     deinit {
         self.shutdown()
     }
 
     public func start() throws -> EventLoopFuture<PingSummary> {
-        self.resolvedAddress = try SocketAddress.makeAddressResolvingHost(self.configuration.host, port: self.configuration.port)
-        return self.stateLock.withLock {
-            switch self.state {
-            case .ready:
-                self.state = .running
-                for cnt in 0..<self.configuration.count {
-                    let promise = self.eventLoopGroup.any().makePromise(of: PingResponse.self)
-                    guard let resolvedAddress = self.resolvedAddress else {
-                        self.resultPromise.fail(PingError.httpMissingHost)
-                        self.state = .error
-                        return self.resultPromise.futureResult
-                    }
-
-                    self.connect(to: resolvedAddress, resultPromise: promise).whenComplete { result in
-                        switch result {
-                        case .success(let channel):
-                            self.channels.withLockedValue { channels in
-                                channels.append(channel)
-                            }
-
-                            channel.eventLoop.scheduleTask(in: self.configuration.readTimeout * cnt) {
-                                let request = self.configuration.makeHTTPRequest(for: UInt16(cnt))
-                                channel.write(request, promise: nil)
-                            }
-                        case .failure(let error):
-                            promise.fail(error)
-                            self.stateLock.withLockVoid {
-                                self.state = .error
-                            }
-                        }
-                    }
-
-                    promise.futureResult.whenComplete { res in
-                        self.channels.withLockedValue { channels in
-                            if !channels.isEmpty {
-                                channels.removeFirst()
-                            }
-                        }
-                        switch res {
-                        case .success(let response):
-                            self.responses.append(response)
-                            if self.responses.count == self.configuration.count {
-                                self.resultPromise.succeed(self.responses.summarize(host: resolvedAddress))
-                            }
-                        case .failure(let error):
-                            self.resultPromise.fail(error)
-                        }
+        return try self.state.withLockedValue { state in
+            switch state {
+            case .idle:
+                state = .running
+                return try self.pingClient.start().always { _ in
+                    self.state.withLockedValue { state in
+                        state = .idle
                     }
                 }
-
-                self.resultPromise.futureResult.whenComplete { result in
-                    switch result {
-                    case .success:
-                        self.stateLock.withLockVoid {
-                            self.state = .finished
-                        }
-                    case .failure:
-                        self.stateLock.withLockVoid {
-                            self.state = .error
-                        }
-                    }
-                }
-
-                return self.resultPromise.futureResult
             default:
-                preconditionFailure("Cannot run ICMP Ping when the client is not in ready state.")
+                preconditionFailure("Cannot run HTTP Ping when the client is not in ready state.")
             }
         }
     }
 
     public func cancel() {
-        self.stateLock.withLockVoid {
-            switch self.state {
-            case .ready:
-                self.state = .cancelled
+        self.state.withLockedValue { state in
+            switch state {
+            case .idle:
+                state = .canceled
                 self.resultPromise.fail(PingError.taskIsCancelled)
             case .running:
-                self.state = .cancelled
-                guard let resolvedAddress = self.resolvedAddress else {
-                    self.resultPromise.fail(PingError.httpMissingHost)
-                    return
-                }
-                self.resultPromise.succeed(self.responses.summarize(host: resolvedAddress))
-                shutdown()
-            case .error:
-                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in error state.")
-            case .cancelled:
-                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in cancelled state.")
-            case .finished:
-                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when test is finished.")
+                state = .canceled
+                self.pingClient.cancel()
+            case .canceled:
+                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when HTTP Client is in canceled state.")
             }
         }
     }
 
-    private func connect(to address: SocketAddress,
-                         resultPromise: EventLoopPromise<PingResponse>) -> EventLoopFuture<Channel> {
-        return makeBootstrap(address, resultPromise: resultPromise).connect(to: address)
-    }
-
-    private func makeBootstrap(_ resolvedAddress: SocketAddress,
-                               resultPromise: EventLoopPromise<PingResponse>) -> ClientBootstrap {
-        return ClientBootstrap(group: self.eventLoopGroup)
-            .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
-            .connectTimeout(self.configuration.connectionTimeout)
-            .channelInitializer { channel in
-                if self.configuration.schema.enableTLS {
-                    do {
-                        let tlsConfiguration = TLSConfiguration.makeClientConfiguration()
-                        let sslContext = try NIOSSLContext(configuration: tlsConfiguration)
-                        let tlsHandler = try NIOSSLClientHandler(context: sslContext,
-                                                                 serverHostname: self.configuration.host)
-                        try channel.pipeline.syncOperations.addHandlers(tlsHandler)
-                    } catch {
-                        return channel.eventLoop.makeFailedFuture(error)
-                    }
-                }
-
-                do {
-                    let handler = HTTPHandler(useServerTiming: self.configuration.useServerTiming,
-                                                             promise: resultPromise)
-                    try channel.pipeline.syncOperations.addHTTPClientHandlers(position: .last)
-                    try channel.pipeline.syncOperations.addHandler(
-                        HTTPTracingHandler(configuration: self.configuration, handler: handler),
-                        position: .last
-                    )
-
-                    #if INTEGRATION_TEST
-                    guard let networkLinkConfig = self.networkLinkConfig else {
-                        preconditionFailure("Test should initialize NetworkLinkConfiguration")
-                    }
-                    try channel.pipeline.syncOperations.addHandler(
-                        TrafficControllerChannelHandler(networkLinkConfig: networkLinkConfig),
-                        position: .first
-                    )
-                    #endif
-                } catch {
-                    return channel.eventLoop.makeFailedFuture(error)
-                }
-
-                return channel.eventLoop.makeSucceededVoidFuture()
-            }
-    }
-
     private func shutdown() {
-        self.channels.withLockedValue { channels in
-            channels.forEach { channel in
-                channel.close(mode: .all).whenFailure { error in
-                    logger.error("Cannot close HTTP Ping Client: \(error)")
-                }
+        logger.info("Shutting down HTTPPing Client")
+        self.eventLoopGroup.shutdownGracefully { error in
+            if let error = error {
+                logger.error("Cannot shut down eventloop gracefully: \(error)")
             }
-            print("Shutdown!")
         }
     }
 }
@@ -221,7 +128,7 @@ extension HTTPPingClient {
     /// The information in this data will be used to construct the corresponding HTTP request.
     public struct Request {
         /// The sequence number of the ICMP test. This number should be monotonically increasing.
-        let sequenceNumber: UInt16
+        let sequenceNumber: Int
 
         /// The request head that indicates the HTTP version, header information, and more.
         let requestHead: HTTPRequestHead
@@ -270,18 +177,9 @@ extension HTTPPingClient {
         public let port: Int
 
         /// The HTTP header that will be included in the HTTP request.
-        public var httpHeaders: HTTPHeaders {
-            let headerDictionary = self.headers.isEmpty ? Configuration.defaultHeaders : self.headers
-            var httpHeaders = HTTPHeaders(headerDictionary.map {($0, $1)})
-            if !httpHeaders.contains(name: "Host") {
-                var host = self.host
-                if self.port != self.schema.defaultPort {
-                    host += ":\(self.port)"
-                }
-                httpHeaders.add(name: "Host", value: host)
-            }
-            return httpHeaders
-        }
+        public let httpHeaders: HTTPHeaders
+
+        public var resolvedAddress: SocketAddress
 
         /// Initialize a HTTP Ping Client `Configuration`.
         ///
@@ -317,7 +215,7 @@ extension HTTPPingClient {
             guard let _host = url.host, !_host.isEmpty else {
                 throw PingError.httpMissingHost
             }
-            host = _host
+            self.host = _host
 
             guard let s = url.scheme, !s.isEmpty else {
                 throw PingError.httpMissingSchema
@@ -328,7 +226,21 @@ extension HTTPPingClient {
             }
             self.schema = _schema
 
-            port = url.port ?? schema.defaultPort
+            self.port = url.port ?? schema.defaultPort
+            self.resolvedAddress = try SocketAddress.makeAddressResolvingHost(self.host, port: self.port)
+
+            self.httpHeaders = {
+                let headerDictionary = headers.isEmpty ? Configuration.defaultHeaders : headers
+                var httpHeaders = HTTPHeaders(headerDictionary.map {($0, $1)})
+                if !httpHeaders.contains(name: "Host") {
+                    var host = _host
+                    if let _port = url.port {
+                        host += ":\(_port)"
+                    }
+                    httpHeaders.add(name: "Host", value: host)
+                }
+                return httpHeaders
+            }()
         }
 
         /// Initialize a HTTP Ping Client `Configuration`.
@@ -389,7 +301,7 @@ extension HTTPPingClient {
         /// - Parameters:
         ///     - for: the sequence number of the request
         /// - Returns: a `Request` object.
-        public func makeHTTPRequest(for sequenceNumber: UInt16) -> Request {
+        public func makeHTTPRequest(for sequenceNumber: Int) -> Request {
             let requestHead = HTTPRequestHead(version: .http1_1, method: .GET, uri: url.uri, headers: self.httpHeaders)
             return Request(sequenceNumber: sequenceNumber, requestHead: requestHead)
         }

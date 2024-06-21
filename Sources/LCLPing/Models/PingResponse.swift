@@ -32,17 +32,17 @@ internal enum PingResponse: Equatable {
     }
 
     /// Test finishes as expected. The sequence number, latency, and timestamp when the test finishes will be reported.
-    case ok(UInt16, Double, TimeInterval)
+    case ok(Int, Double, TimeInterval)
 
     /// Test is a duplicate of a previously finished test. The sequence number of the test will be reported.
-    case duplicated(UInt16)
+    case duplicated(Int)
 
     /// Test timed out (no response is received during the period of a some wait time, specified in the configuration).
     /// The sequence number of the test will be reported.
-    case timeout(UInt16)
+    case timeout(Int)
 
     /// Test failed with some error. If error occurs during a specific test, 
     /// then the sequence number of the test will be reported.
     /// Otherwise, only the error will be reported.
-    case error(UInt16?, Error?)
+    case error(Int?, Error?)
 }

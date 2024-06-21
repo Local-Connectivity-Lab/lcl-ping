@@ -69,8 +69,8 @@ extension Array where Element == PingResponse {
         var errorCount: Int = 0
         var errors: Set<PingSummary.ErrorSummary> = Set()
         var pingResults: [PingResult] = []
-        var timeout: Set<UInt16> = Set()
-        var duplicates: Set<UInt16> = Set()
+        var timeout: Set<Int> = Set()
+        var duplicates: Set<Int> = Set()
 
         for pingResponse in self {
             switch pingResponse {

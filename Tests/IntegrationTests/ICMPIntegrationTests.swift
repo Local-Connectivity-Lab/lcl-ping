@@ -20,7 +20,7 @@ final class ICMPIntegrationTests: XCTestCase {
     private func runTest(
         networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected,
         rewriteHeader: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject]? = nil,
-        pingConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0))
+        pingConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 10)
     ) throws -> PingSummary {
         let icmp = ICMPPingClient(networkLinkConfig: networkLinkConfig, rewriteHeaders: rewriteHeader, configuration: pingConfig)
         return try icmp.start().wait()
@@ -33,14 +33,14 @@ final class ICMPIntegrationTests: XCTestCase {
         XCTAssertEqual(pingSummary.duplicates.count, 0)
         XCTAssertEqual(pingSummary.timeout.count, 0)
         for i in 0..<10 {
-            XCTAssertEqual(pingSummary.details[i].seqNum, UInt16(i))
+            XCTAssertEqual(pingSummary.details[i].seqNum, i)
         }
     }
 
     func testFullyDisconnectedNetwork() throws {
         let pingSummary = try runTest(networkLinkConfig: .fullyDisconnected)
         for i in 0..<10 {
-            XCTAssertEqual(pingSummary.timeout.contains(UInt16(i)), true)
+            XCTAssertEqual(pingSummary.timeout.contains(i), true)
         }
         XCTAssertEqual(pingSummary.totalCount, 10)
         XCTAssertEqual(pingSummary.details.isEmpty, true)
@@ -56,32 +56,32 @@ final class ICMPIntegrationTests: XCTestCase {
 
     func testMinorInOutPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.1, outPacketLoss: 0.1)
-        let _ = try runTest(networkLinkConfig: networkLink)
+        _ = try runTest(networkLinkConfig: networkLink)
     }
 
     func testMediumInOutPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.4, outPacketLoss: 0.4)
-        let _ = try runTest(networkLinkConfig: networkLink)
+        _ = try runTest(networkLinkConfig: networkLink)
     }
 
     func testMinorInPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.2)
-        let _ = try runTest(networkLinkConfig: networkLink)
+        _ = try runTest(networkLinkConfig: networkLink)
     }
 
     func testMinorOutPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(outPacketLoss: 0.2)
-        let _ = try runTest(networkLinkConfig: networkLink)
+        _ = try runTest(networkLinkConfig: networkLink)
     }
 
     func testMediumInPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.5)
-        let _ = try runTest(networkLinkConfig: networkLink)
+        _ = try runTest(networkLinkConfig: networkLink)
     }
 
     func testMediumOutPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(outPacketLoss: 0.5)
-        let _ = try runTest(networkLinkConfig: networkLink)
+        _ = try runTest(networkLinkConfig: networkLink)
     }
 
     func testFullyDuplicatedNetwork() throws {
@@ -103,7 +103,7 @@ final class ICMPIntegrationTests: XCTestCase {
         let newConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 1)
         let expectedError = PingError.invalidIPVersion
         do {
-            let _ = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: newConfig)
+            _ = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: newConfig)
             XCTFail("Should receive invalid IP protocol error")
         } catch {
             XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
@@ -122,12 +122,12 @@ final class ICMPIntegrationTests: XCTestCase {
         let newConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 1)
         let expectedError = PingError.invalidIPProtocol
         do {
-            let _ = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: newConfig)
+            _ = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: newConfig)
             XCTFail("Should receive invalid IP protocol error")
         } catch {
             XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
         }
-        
+
         #else
         XCTSkip("Skipped on Linux Platform")
         #endif
@@ -196,7 +196,7 @@ final class ICMPIntegrationTests: XCTestCase {
 
         let expectedError = PingError.invalidICMPResponse
         do {
-            let _ = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
+            _ = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
             XCTFail("Should receive invalid \(expectedError.localizedDescription)")
         } catch {
             XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
@@ -237,13 +237,17 @@ final class ICMPIntegrationTests: XCTestCase {
         for waitSecond in [2, 4, 5, 6, 7, 9] {
             let pingConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 11)
             let icmpPing = ICMPPingClient(networkLinkConfig: .fullyConnected, rewriteHeaders: nil, configuration: pingConfig)
-            
+            let exp = XCTestExpectation(description: "Cancel After \(waitSecond) second")
+
             DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(waitSecond)) {
                 print("will cancel ping after waiting \(waitSecond) s")
                 icmpPing.cancel()
+                exp.fulfill()
             }
 
             let summary = try icmpPing.start().wait()
+            wait(for: [exp], timeout: Double(waitSecond + 1))
+            print("summary: \(summary)")
             XCTAssertLessThanOrEqual(summary.totalCount, waitSecond + 1)
             XCTAssertEqual(summary.details.isEmpty, false)
             XCTAssertEqual(summary.duplicates.count, 0)

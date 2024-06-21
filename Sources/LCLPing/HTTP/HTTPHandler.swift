@@ -74,14 +74,14 @@ final class HTTPHandler: PingHandler {
         self.latency.requestStart = Date.currentTimestamp
     }
 
-    func handleTimeout(sequenceNumber: UInt16) {
+    func handleTimeout(sequenceNumber: Int) {
         if sequenceNumber == self.latency.seqNum {
             self.latency.state = .timeout
             self.shouldCloseHandler()
         }
     }
 
-    func handleError(sequenceNum: UInt16?, error: Error) {
+    func handleError(sequenceNum: Int?, error: Error) {
         if let seqNum = sequenceNum, seqNum == self.latency.seqNum {
             self.latency.state = .error(error)
             self.promise.fail(error)

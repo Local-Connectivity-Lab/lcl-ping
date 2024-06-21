@@ -25,7 +25,7 @@ enum PingState: Equatable {
     case error
 
     /// LCLPing is stopped by explicit `cancel()` and ping summary is ready
-    case cancelled
+    case canceled
 
     /// LCLPing finishes and ping summary is ready
     case finished

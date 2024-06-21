@@ -57,10 +57,14 @@ public enum PingError: Error {
     case httpMissingSchema
     case httpInvalidResponseStatusCode(Int)
     case httpInvalidHandlerState
+    case httpMissingResponse
+    case httpInvalidURLSessionTask(Int)
 
     case invalidHexFormat
 
     case insufficientBytes(String)
+    
+    case missingConfiguration
 
     case forTestingPurposeOnly
 }
@@ -74,7 +78,7 @@ extension PingError: CustomStringConvertible {
         case .invalidLatencyResponseState:
             return "Latency response is in invalid state."
         case .taskIsCancelled:
-            return "Task is cancelled."
+            return "Task is canceled."
         case .invalidICMPResponse:
             return "ICMP response is invalid."
         case .invalidURL(let url):
@@ -155,6 +159,12 @@ extension PingError: CustomStringConvertible {
             return "Insufficient bytes: \(string)"
         case .forTestingPurposeOnly:
             return "For testing purpose ONLY."
+        case .missingConfiguration:
+            return "Please provide a valid configuration."
+        case .httpMissingResponse:
+            return "Missing HTTP response."
+        case .httpInvalidURLSessionTask(let id):
+            return "URLSession Task \(id) is invalid."
         }
     }
 
