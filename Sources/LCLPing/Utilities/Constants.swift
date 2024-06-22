@@ -17,18 +17,12 @@ import Logging
 let estimatedServerTiming: Double = 15
 
 let LOGGER_LABEL = "org.seattlecommunitynetwork.lclping"
-var logger: Logger {
-    get {
-        var logger = Logger(label: LOGGER_LABEL)
-    #if DEBUG
-        logger.logLevel = .debug
-    #else // !LOG
-        logger.logLevel = .info
-    #endif
-        return logger
-    }
-
-    set {
-
-    }
-}
+let logger: Logger = {
+    var logger = Logger(label: LOGGER_LABEL)
+#if DEBUG
+    logger.logLevel = .debug
+#else // !LOG
+    logger.logLevel = .info
+#endif
+    return logger
+}()
