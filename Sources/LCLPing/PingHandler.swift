@@ -28,7 +28,7 @@ protocol PingHandler {
     func handleWrite(request: Request)
 
     /// Handle the timeout event associated with the certain request identified by its sequence number.
-    func handleTimeout(sequenceNumber: UInt16)
+    func handleTimeout(sequenceNumber: Int)
 
     /// Handle error.
     func handleError(error: Error)

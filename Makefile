@@ -24,7 +24,7 @@ teardown_server:
 ######### Production #########
 .PHONY: release
 release: test
-	swift build --release
+	swift build -c release
 
 .PHONY: test
 test:

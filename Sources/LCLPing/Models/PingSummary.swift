@@ -41,10 +41,10 @@ public struct PingSummary: Equatable, Encodable {
     public let totalCount: Int
 
     /// A set of requests, identified by their sequence number, that timed out during the test.
-    public let timeout: Set<UInt16>
+    public let timeout: Set<Int>
 
     /// A set of requests, identified by their sequence number, that the test client received multuple duplicates during the test.
-    public let duplicates: Set<UInt16>
+    public let duplicates: Set<Int>
 
     /// A set of errors generated during the test.
     public let errors: Set<ErrorSummary>
@@ -70,7 +70,7 @@ extension PingSummary {
         }
 
         /// The sequence number at which the error occurs.
-        public let seqNum: UInt16?
+        public let seqNum: Int?
 
         /// The reason of the error.
         public let reason: String

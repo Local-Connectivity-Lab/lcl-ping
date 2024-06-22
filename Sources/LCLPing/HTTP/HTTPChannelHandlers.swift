@@ -42,10 +42,10 @@ internal final class HTTPTracingHandler: ChannelDuplexHandler {
         }
     }
 
-    init(configuration: HTTPPingClient.Configuration, handler: HTTPHandler) {
+    init(configuration: HTTPPingClient.Configuration, promise: EventLoopPromise<PingResponse>) {
         self.state = .inactive
         self.configuration = configuration
-        self.handler = handler
+        self.handler = HTTPHandler(useServerTiming: self.configuration.useServerTiming, promise: promise)
     }
 
     func channelActive(context: ChannelHandlerContext) {

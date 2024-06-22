@@ -36,16 +36,17 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
     }
 
     private var state: State
-
+    private let configuration: ICMPPingClient.Configuration
     private let resolvedAddress: SocketAddress
     private var handler: ICMPHandler
     private var timer: [UInt16: Scheduled<Void>]
 
-    init(resolvedAddress: SocketAddress, handler: ICMPHandler) {
+    init(configuration: ICMPPingClient.Configuration, promise: EventLoopPromise<[PingResponse]>) {
         self.state = .inactive
-        self.resolvedAddress = resolvedAddress
+        self.configuration = configuration
+        self.resolvedAddress = self.configuration.resolvedAddress
         self.timer = [:]
-        self.handler = handler
+        self.handler = ICMPHandler(totalCount: self.configuration.count, promise: promise)
     }
 
     func write(context: ChannelHandlerContext, data: NIOAny, promise: EventLoopPromise<Void>?) {
@@ -65,13 +66,14 @@ internal final class ICMPDuplexer: ChannelDuplexHandler {
         context.writeAndFlush(self.wrapOutboundOut(evelope), promise: promise)
         self.handler.handleWrite(request: icmpRequest)
 
-        let scheduledTimer = context.eventLoop.scheduleTask(deadline: .now() + .seconds(1)) {
+        let scheduledTimer = context.eventLoop.scheduleTask(in: self.configuration.timeout) {
+            logger.debug("[\(#fileID)][\(#line)][\(#function)]: timer for \(request.sequenceNum) is invoked => time out!")
             self.timer.removeValue(forKey: request.sequenceNum)
-            self.handler.handleTimeout(sequenceNumber: request.sequenceNum)
+            self.handler.handleTimeout(sequenceNumber: Int(request.sequenceNum))
         }
 
         timer[request.sequenceNum] = scheduledTimer
-        logger.debug("[\(#fileID)][\(#line)][\(#function)]: schedule timer for # \(request.sequenceNum)")
+        logger.debug("[\(#fileID)][\(#line)][\(#function)]: schedule timer [\(configuration.timeout)s] for # \(request.sequenceNum)")
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {

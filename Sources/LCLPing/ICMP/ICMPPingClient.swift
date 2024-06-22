@@ -23,7 +23,6 @@ public final class ICMPPingClient: Pingable {
     private let eventLoopGroup: EventLoopGroup
     private var state: PingState
     private let configuration: Configuration
-    private var handler: ICMPHandler
     private var channel: Channel?
     private var promise: EventLoopPromise<[PingResponse]>
 
@@ -45,7 +44,6 @@ public final class ICMPPingClient: Pingable {
         self.state = .ready
         self.configuration = configuration
         self.promise = self.eventLoopGroup.next().makePromise(of: [PingResponse].self)
-        self.handler = ICMPHandler(totalCount: self.configuration.count, promise: promise)
     }
 
     #if INTEGRATION_TEST
@@ -63,24 +61,26 @@ public final class ICMPPingClient: Pingable {
     }
 
     public func start() -> EventLoopFuture<PingSummary> {
-        let resolvedAddress = self.configuration.endpoint.resolvedAddress!
         return self.stateLock.withLock {
             switch self.state {
             case .ready:
                 self.state = .running
 
-                return self.connect(to: resolvedAddress).flatMap { channel in
+                return self.connect(to: self.configuration.resolvedAddress).flatMap { channel in
                     self.channel = channel
                     channel.closeFuture.whenComplete { result in
                         switch result {
                         case .success:
-                            self.handler.reset()
+                            ()
                         case .failure:
-                            self.state = .error
+                            self.stateLock.withLockVoid {
+                                self.state = .error
+                            }
                         }
                     }
 
                     for cnt in 0..<self.configuration.count {
+                        logger.debug("Scheduled #\(cnt) request")
                         channel.eventLoop.scheduleTask(in: cnt * self.configuration.interval) {
                             channel.write(
                                 ICMPPingClient.Request(
@@ -93,7 +93,7 @@ public final class ICMPPingClient: Pingable {
                     }
 
                     return self.promise.futureResult.flatMap { pingResponse in
-                        let summary = pingResponse.summarize(host: resolvedAddress)
+                        let summary = pingResponse.summarize(host: self.configuration.resolvedAddress)
                         self.stateLock.withLockVoid {
                             self.state = .finished
                         }
@@ -114,18 +114,18 @@ public final class ICMPPingClient: Pingable {
         self.stateLock.withLockVoid {
             switch self.state {
             case .ready:
-                self.state = .cancelled
+                self.state = .canceled
                 self.promise.fail(PingError.taskIsCancelled)
-                logger.debug("shut down => from ready state")
+                logger.debug("cancel from ready state")
                 shutdown()
             case .running:
-                self.state = .cancelled
-                logger.debug("shut down => from running state")
+                self.state = .canceled
+                logger.debug("cancel from running state")
                 shutdown()
             case .error:
                 logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in error state.")
-            case .cancelled:
-                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in cancelled state.")
+            case .canceled:
+                logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when ICMP Client is in canceled state.")
             case .finished:
                 logger.debug("[\(#fileID)][\(#line)][\(#function)]: No need to cancel when test is finished.")
             }
@@ -133,10 +133,10 @@ public final class ICMPPingClient: Pingable {
     }
 
     private func connect(to address: SocketAddress) -> EventLoopFuture<Channel> {
-        return makeBootstrap(address).connect(to: address)
+        return makeBootstrap().connect(to: address)
     }
 
-    private func makeBootstrap(_ resolvedAddress: SocketAddress) -> DatagramBootstrap {
+    private func makeBootstrap() -> DatagramBootstrap {
         return DatagramBootstrap(group: self.eventLoopGroup)
             .protocolSubtype(.init(.icmp))
             .channelInitializer { channel in
@@ -149,13 +149,13 @@ public final class ICMPPingClient: Pingable {
                     InboundHeaderRewriter<AddressedEnvelope<ByteBuffer>>(rewriteHeaders: self.rewriteHeaders),
                     IPDecoder(),
                     ICMPDecoder(),
-                    ICMPDuplexer(resolvedAddress: resolvedAddress, handler: self.handler)
+                    ICMPDuplexer(configuration: self.configuration, promise: self.promise)
                 ]
                 #else
                 let handlers: [ChannelHandler] = [
                     IPDecoder(),
                     ICMPDecoder(),
-                    ICMPDuplexer(resolvedAddress: resolvedAddress, handler: self.handler)
+                    ICMPDuplexer(configuration: self.configuration, promise: self.promise)
                 ]
                 #endif
                 do {
@@ -171,10 +171,11 @@ public final class ICMPPingClient: Pingable {
     }
 
     private func shutdown() {
+        logger.info("Shutting down ICMPPing Client")
         if let channel = self.channel, channel.isActive {
             logger.debug("shut down icmp ping client")
             self.channel?.close(mode: .all).whenFailure { error in
-                logger.debug("Cannot close channel: \(error)")
+                logger.error("Cannot close channel: \(error)")
             }
         }
     }
@@ -183,6 +184,8 @@ public final class ICMPPingClient: Pingable {
 extension ICMPPingClient {
 
     /// The configuration that will be used to configure the ICMP Ping Client.
+    ///
+    /// - Throws:a SocketAddressError.unknown if we could not resolve the host, or SocketAddressError.unsupported if the address itself is not supported (yet).
     public struct Configuration {
         /// The target host that LCLPing will send the Ping request to
         public let endpoint: EndpointTarget
@@ -199,17 +202,25 @@ extension ICMPPingClient {
         /// Time, in second, to wait for a reply for each packet sent. Default is 1s.
         public var timeout: TimeAmount
 
+        public let resolvedAddress: SocketAddress
+
         public init(endpoint: EndpointTarget,
                     count: Int = 10,
                     interval: TimeAmount = .seconds(1),
                     timeToLive: UInt8 = 64,
                     timeout: TimeAmount = .seconds(1)
-        ) {
+        ) throws {
             self.endpoint = endpoint
             self.count = count
             self.interval = interval
             self.timeToLive = timeToLive
             self.timeout = timeout
+            switch self.endpoint {
+            case .ipv4(let addr, let port):
+                self.resolvedAddress = try SocketAddress.makeAddressResolvingHost(addr, port: port ?? 0)
+            case .ipv6(let addr, let port):
+                self.resolvedAddress = try SocketAddress.makeAddressResolvingHost(addr, port: port ?? 0)
+            }
         }
     }
 
@@ -217,16 +228,5 @@ extension ICMPPingClient {
     public enum EndpointTarget {
         case ipv4(String, Int?)
         case ipv6(String, Int?)
-
-        /// the resolved address given the string representation of the endpoint target.
-        /// If the address or port cannot be resolved, then `resolvedAddress` will be nil.
-        var resolvedAddress: SocketAddress? {
-            switch self {
-            case .ipv4(let addr, let port):
-                return try? SocketAddress.makeAddressResolvingHost(addr, port: port ?? 0)
-            case .ipv6(let addr, let port):
-                return try? SocketAddress.makeAddressResolvingHost(addr, port: port ?? 0)
-            }
-        }
     }
 }

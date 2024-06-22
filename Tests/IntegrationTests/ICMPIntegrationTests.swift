@@ -20,7 +20,7 @@ final class ICMPIntegrationTests: XCTestCase {
     private func runTest(
         networkLinkConfig: TrafficControllerChannelHandler.NetworkLinkConfiguration = .fullyConnected,
         rewriteHeader: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject]? = nil,
-        pingConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0))
+        pingConfig: ICMPPingClient.Configuration = try! .init(endpoint: .ipv4("127.0.0.1", 0), count: 10)
     ) throws -> PingSummary {
         let icmp = ICMPPingClient(networkLinkConfig: networkLinkConfig, rewriteHeaders: rewriteHeader, configuration: pingConfig)
         return try icmp.start().wait()
@@ -33,14 +33,14 @@ final class ICMPIntegrationTests: XCTestCase {
         XCTAssertEqual(pingSummary.duplicates.count, 0)
         XCTAssertEqual(pingSummary.timeout.count, 0)
         for i in 0..<10 {
-            XCTAssertEqual(pingSummary.details[i].seqNum, UInt16(i))
+            XCTAssertEqual(pingSummary.details[i].seqNum, i)
         }
     }
 
     func testFullyDisconnectedNetwork() throws {
         let pingSummary = try runTest(networkLinkConfig: .fullyDisconnected)
         for i in 0..<10 {
-            XCTAssertEqual(pingSummary.timeout.contains(UInt16(i)), true)
+            XCTAssertEqual(pingSummary.timeout.contains(i), true)
         }
         XCTAssertEqual(pingSummary.totalCount, 10)
         XCTAssertEqual(pingSummary.details.isEmpty, true)
@@ -49,39 +49,39 @@ final class ICMPIntegrationTests: XCTestCase {
     }
 
     func testUnknownHost() throws {
-        let newConfig = ICMPPingClient.Configuration(endpoint: .ipv4("10.10.10.127", 0), count: 10)
+        let newConfig = try ICMPPingClient.Configuration(endpoint: .ipv4("10.10.10.127", 0), count: 10)
         let pingSummary = try runTest(pingConfig: newConfig)
         XCTAssertEqual(pingSummary.timeout.count, 10)
     }
 
     func testMinorInOutPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.1, outPacketLoss: 0.1)
-        let _ = try runTest(networkLinkConfig: networkLink)
+        _ = try runTest(networkLinkConfig: networkLink)
     }
 
     func testMediumInOutPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.4, outPacketLoss: 0.4)
-        let _ = try runTest(networkLinkConfig: networkLink)
+        _ = try runTest(networkLinkConfig: networkLink)
     }
 
     func testMinorInPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.2)
-        let _ = try runTest(networkLinkConfig: networkLink)
+        _ = try runTest(networkLinkConfig: networkLink)
     }
 
     func testMinorOutPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(outPacketLoss: 0.2)
-        let _ = try runTest(networkLinkConfig: networkLink)
+        _ = try runTest(networkLinkConfig: networkLink)
     }
 
     func testMediumInPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(inPacketLoss: 0.5)
-        let _ = try runTest(networkLinkConfig: networkLink)
+        _ = try runTest(networkLinkConfig: networkLink)
     }
 
     func testMediumOutPacketDrop() throws {
         let networkLink = TrafficControllerChannelHandler.NetworkLinkConfiguration(outPacketLoss: 0.5)
-        let _ = try runTest(networkLinkConfig: networkLink)
+        _ = try runTest(networkLinkConfig: networkLink)
     }
 
     func testFullyDuplicatedNetwork() throws {
@@ -100,16 +100,16 @@ final class ICMPIntegrationTests: XCTestCase {
         let addressedEnvelopRewriteHeaders: [PartialKeyPath<AddressedEnvelope<ByteBuffer>>: AnyObject] = [
             \AddressedEnvelope.data: [RewriteData(index: 0, byte: 0x55)] as AnyObject
         ]
-        let newConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 1)
+        let newConfig: ICMPPingClient.Configuration = try .init(endpoint: .ipv4("127.0.0.1", 0), count: 1)
         let expectedError = PingError.invalidIPVersion
         do {
-            let _ = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: newConfig)
+            _ = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: newConfig)
             XCTFail("Should receive invalid IP protocol error")
         } catch {
             XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
         }
         #else
-        XCTSkip("Skipped on Linux Platform")
+        throw XCTSkip("Skipped on Linux Platform")
         #endif
     }
 
@@ -119,17 +119,17 @@ final class ICMPIntegrationTests: XCTestCase {
             \AddressedEnvelope.data: [RewriteData(index: 9, byte: 0x02)] as AnyObject
         ]
 
-        let newConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 1)
+        let newConfig: ICMPPingClient.Configuration = try .init(endpoint: .ipv4("127.0.0.1", 0), count: 1)
         let expectedError = PingError.invalidIPProtocol
         do {
-            let _ = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: newConfig)
+            _ = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: newConfig)
             XCTFail("Should receive invalid IP protocol error")
         } catch {
             XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
         }
-        
+
         #else
-        XCTSkip("Skipped on Linux Platform")
+        throw XCTSkip("Skipped on Linux Platform")
         #endif
     }
 
@@ -172,7 +172,7 @@ final class ICMPIntegrationTests: XCTestCase {
                 \AddressedEnvelope.data: [RewriteData(index: 20, byte: type), RewriteData(index: 21, byte: code)] as AnyObject
             ]
 
-            let pingConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 1)
+            let pingConfig: ICMPPingClient.Configuration = try .init(endpoint: .ipv4("127.0.0.1", 0), count: 1)
             do {
                 let pingSummary = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
                 XCTAssertEqual(pingSummary.totalCount, 1)
@@ -182,7 +182,7 @@ final class ICMPIntegrationTests: XCTestCase {
             }
         }
         #else
-        XCTSkip("Skipped on Linux Platform")
+        throw XCTSkip("Skipped on Linux Platform")
         #endif
     }
 
@@ -192,17 +192,17 @@ final class ICMPIntegrationTests: XCTestCase {
             \AddressedEnvelope.data: [RewriteData(index: 27, byte: 0x02)] as AnyObject
         ]
 
-        let pingConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 1)
+        let pingConfig: ICMPPingClient.Configuration = try .init(endpoint: .ipv4("127.0.0.1", 0), count: 1)
 
         let expectedError = PingError.invalidICMPResponse
         do {
-            let _ = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
+            _ = try runTest(rewriteHeader: addressedEnvelopRewriteHeaders, pingConfig: pingConfig)
             XCTFail("Should receive invalid \(expectedError.localizedDescription)")
         } catch {
             XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
         }
         #else
-        XCTSkip("Skipped on Linux Platform")
+        throw XCTSkip("Skipped on Linux Platform")
         #endif
     }
 
@@ -212,7 +212,7 @@ final class ICMPIntegrationTests: XCTestCase {
             \AddressedEnvelope.data: [RewriteData(index: 22, byte: 0x56)] as AnyObject
         ]
 
-        let pingConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 1)
+        let pingConfig: ICMPPingClient.Configuration = try .init(endpoint: .ipv4("127.0.0.1", 0), count: 1)
 
         let expectedError = PingError.invalidICMPChecksum
         do {
@@ -223,27 +223,31 @@ final class ICMPIntegrationTests: XCTestCase {
             XCTFail("Should not throw \(error)")
         }
         #else
-        XCTSkip("Skipped on Linux Platform")
+        throw XCTSkip("Skipped on Linux Platform")
         #endif
     }
 
     func testCancelBeforeTestStarts() throws {
-        let pingConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 3)
+        let pingConfig: ICMPPingClient.Configuration = try .init(endpoint: .ipv4("127.0.0.1", 0), count: 3)
         let icmp = ICMPPingClient(networkLinkConfig: .fullyConnected, rewriteHeaders: nil, configuration: pingConfig)
         icmp.cancel()
     }
 
     func testCancelDuringTest() throws {
         for waitSecond in [2, 4, 5, 6, 7, 9] {
-            let pingConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 11)
+            let pingConfig: ICMPPingClient.Configuration = try .init(endpoint: .ipv4("127.0.0.1", 0), count: 11)
             let icmpPing = ICMPPingClient(networkLinkConfig: .fullyConnected, rewriteHeaders: nil, configuration: pingConfig)
-            
+            let exp = XCTestExpectation(description: "Cancel After \(waitSecond) second")
+
             DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(waitSecond)) {
                 print("will cancel ping after waiting \(waitSecond) s")
                 icmpPing.cancel()
+                exp.fulfill()
             }
 
             let summary = try icmpPing.start().wait()
+            wait(for: [exp], timeout: Double(waitSecond + 1))
+            print("summary: \(summary)")
             XCTAssertLessThanOrEqual(summary.totalCount, waitSecond + 1)
             XCTAssertEqual(summary.details.isEmpty, false)
             XCTAssertEqual(summary.duplicates.count, 0)
@@ -252,7 +256,7 @@ final class ICMPIntegrationTests: XCTestCase {
     }
 
     func testCancelAfterTestFinishes() throws {
-        let pingConfig: ICMPPingClient.Configuration = .init(endpoint: .ipv4("127.0.0.1", 0), count: 3)
+        let pingConfig: ICMPPingClient.Configuration = try .init(endpoint: .ipv4("127.0.0.1", 0), count: 3)
         let icmpPing = ICMPPingClient(networkLinkConfig: .fullyConnected, rewriteHeaders: nil, configuration: pingConfig)
         let summary = try icmpPing.start().wait()
         icmpPing.cancel()
