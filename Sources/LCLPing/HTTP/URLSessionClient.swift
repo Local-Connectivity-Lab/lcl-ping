@@ -163,10 +163,10 @@ extension URLSessionClient: URLSessionDelegate, URLSessionTaskDelegate {
         self.taskToLatency[id] = latency
     }
 }
-#endif
 
 extension TimeAmount {
     var second: Double {
         Double(self.nanoseconds) / 1_000_000_000.0
     }
 }
+#endif
