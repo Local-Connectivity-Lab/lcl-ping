@@ -12,10 +12,6 @@
 
 #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
 import Foundation
-#else
-import Foundation
-import FoundationNetworking
-#endif
 import NIOCore
 
 final class URLSessionClient: NSObject, Pingable {
@@ -45,14 +41,9 @@ final class URLSessionClient: NSObject, Pingable {
     func start() -> EventLoopFuture<PingSummary> {
         let request = makeRequest(using: config)
 
-        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
         let now = Date()
-        #else
-        let now = DispatchTime.now()
-        #endif
         for cnt in 0..<self.config.count {
             logger.debug("Scheduled #\(cnt) request")
-            #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
             self.session?.delegateQueue.schedule(after: .init(now + config.readTimeout.second * Double(cnt))) {
                 guard let session = self.session else {
                     logger.debug("Session has been invalidated.")
@@ -63,18 +54,6 @@ final class URLSessionClient: NSObject, Pingable {
                 self.taskToSeqNum[id] = cnt
                 dataTask.resume()
             }
-            #else
-            self.session?.delegateQueue.underlyingQueue?.asyncAfter(deadline: now + config.readTimeout.second * Double(cnt)) {
-                guard let session = self.session else {
-                    logger.debug("Session has been invalidated.")
-                    return
-                }
-                let dataTask = session.dataTask(with: request)
-                let id = dataTask.taskIdentifier
-                self.taskToSeqNum[id] = cnt
-                dataTask.resume()
-            }
-            #endif
         }
 
         return self.promise.futureResult
@@ -104,8 +83,7 @@ final class URLSessionClient: NSObject, Pingable {
     }
 }
 
-extension URLSessionClient: URLSessionDelegate, URLSessionDataDelegate {
-
+extension URLSessionClient: URLSessionDelegate, URLSessionTaskDelegate {
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         let id = task.taskIdentifier
         guard let seqNum = taskToSeqNum[id] else {
@@ -185,6 +163,7 @@ extension URLSessionClient: URLSessionDelegate, URLSessionDataDelegate {
         self.taskToLatency[id] = latency
     }
 }
+#endif
 
 extension TimeAmount {
     var second: Double {

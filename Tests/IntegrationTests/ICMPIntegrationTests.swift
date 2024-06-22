@@ -109,7 +109,7 @@ final class ICMPIntegrationTests: XCTestCase {
             XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
         }
         #else
-        XCTSkip("Skipped on Linux Platform")
+        throw XCTSkip("Skipped on Linux Platform")
         #endif
     }
 
@@ -129,7 +129,7 @@ final class ICMPIntegrationTests: XCTestCase {
         }
 
         #else
-        XCTSkip("Skipped on Linux Platform")
+        throw XCTSkip("Skipped on Linux Platform")
         #endif
     }
 
@@ -182,7 +182,7 @@ final class ICMPIntegrationTests: XCTestCase {
             }
         }
         #else
-        XCTSkip("Skipped on Linux Platform")
+        throw XCTSkip("Skipped on Linux Platform")
         #endif
     }
 
@@ -202,7 +202,7 @@ final class ICMPIntegrationTests: XCTestCase {
             XCTAssertEqual(expectedError.localizedDescription, error.localizedDescription)
         }
         #else
-        XCTSkip("Skipped on Linux Platform")
+        throw XCTSkip("Skipped on Linux Platform")
         #endif
     }
 
@@ -223,7 +223,7 @@ final class ICMPIntegrationTests: XCTestCase {
             XCTFail("Should not throw \(error)")
         }
         #else
-        XCTSkip("Skipped on Linux Platform")
+        throw XCTSkip("Skipped on Linux Platform")
         #endif
     }
 

@@ -43,13 +43,15 @@ final class HTTPIntegrationTests: XCTestCase {
         XCTAssertEqual(pingSummary.duplicates.count, 0)
         XCTAssertEqual(pingSummary.timeout.count, 0)
 
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        print("Running using URLSession")
         let configWithURLSession = try createURLSessionConfig()
         let urlSessionSummary = try runTest(pingConfig: configWithURLSession)
         XCTAssertEqual(urlSessionSummary.totalCount, 10)
         XCTAssertEqual(urlSessionSummary.details.isEmpty, false)
         XCTAssertEqual(urlSessionSummary.duplicates.count, 0)
         XCTAssertEqual(urlSessionSummary.timeout.count, 0)
-
+        #endif
     }
 
     func testFullyDisconnectedNetwork() throws {
@@ -86,6 +88,8 @@ final class HTTPIntegrationTests: XCTestCase {
             XCTFail("Expect throwing IO error, but throw \(error)")
         }
 
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        print("Running using URLSession")
         let urlSessionConfig = try HTTPPingClient.Configuration(url: "http://127.0.0.1:9090", count: 1, connectionTimeout: .milliseconds(100), useURLSession: true)
         do {
             _ = try runTest(pingConfig: urlSessionConfig)
@@ -95,6 +99,7 @@ final class HTTPIntegrationTests: XCTestCase {
         } catch {
             XCTFail("Expect throwing IO error, but throw \(error)")
         }
+        #endif
     }
 
     func testCorrectStatusCode() throws {
@@ -119,6 +124,8 @@ final class HTTPIntegrationTests: XCTestCase {
 
         }
 
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        print("Running using URLSession")
         for param in [(statusCode: 200, ok: true), (statusCode: 201, ok: true), (statusCode: 301, ok: false), (statusCode: 404, ok: false), (statusCode: 410, ok: false), (statusCode: 500, ok: false), (statusCode: 505, ok: false)] {
             let urlSessionConfig = try HTTPPingClient.Configuration(url: endpoint, count: 3, headers: ["Status-Code": String(param.statusCode)], useURLSession: true)
             let expectedSequenceNumbers: Set<Int> = [0, 1, 2]
@@ -137,8 +144,8 @@ final class HTTPIntegrationTests: XCTestCase {
                     XCTAssertEqual(element.reason, PingError.httpInvalidResponseStatusCode(param.statusCode).localizedDescription)
                 }
             }
-
         }
+        #endif
     }
 
     func testBasicServerTiming() throws {
@@ -156,6 +163,8 @@ final class HTTPIntegrationTests: XCTestCase {
             XCTAssertTrue(expectedSequenceNumbers.contains(element.seqNum))
         }
 
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        print("Running using URLSession")
         let urlSessionConfig: HTTPPingClient.Configuration = try HTTPPingClient.Configuration(url: "http://127.0.0.1:8080/server-timing", count: 3, headers: desiredHeaders, useServerTiming: true, useURLSession: true)
         let urlSessionSummary = try runTest(pingConfig: urlSessionConfig)
         XCTAssertEqual(urlSessionSummary.totalCount, 3)
@@ -163,6 +172,7 @@ final class HTTPIntegrationTests: XCTestCase {
         urlSessionSummary.details.forEach { element in
             XCTAssertTrue(expectedSequenceNumbers.contains(element.seqNum))
         }
+        #endif
     }
 
     func testEmptyServerTimingField() throws {
@@ -180,6 +190,8 @@ final class HTTPIntegrationTests: XCTestCase {
             XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum), true)
         }
 
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        print("Running using URLSession")
         let urlSessionConfig = try  HTTPPingClient.Configuration(url: "http://127.0.0.1:8080/server-timing", count: 3, headers: desiredHeaders, useServerTiming: true, useURLSession: true)
         let urlSessionSummary = try runTest(pingConfig: urlSessionConfig)
         XCTAssertEqual(urlSessionSummary.totalCount, 3)
@@ -187,6 +199,7 @@ final class HTTPIntegrationTests: XCTestCase {
         urlSessionSummary.details.forEach { element in
             XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum), true)
         }
+        #endif
     }
 
     func testMultipleServerTimingFields() throws {
@@ -204,6 +217,8 @@ final class HTTPIntegrationTests: XCTestCase {
             XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum), true)
         }
 
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        print("Running using URLSession")
         let urlSessionConfig = try HTTPPingClient.Configuration(url: "http://127.0.0.1:8080/server-timing", count: 3, headers: desiredHeaders, useServerTiming: true, useURLSession: true)
         let urlSessionSummary = try runTest(pingConfig: urlSessionConfig)
         XCTAssertEqual(urlSessionSummary.totalCount, 3)
@@ -211,6 +226,7 @@ final class HTTPIntegrationTests: XCTestCase {
         urlSessionSummary.details.forEach { element in
             XCTAssertEqual(expectedSequenceNumbers.contains(element.seqNum), true)
         }
+        #endif
     }
 
     func testCancelBeforeTestStarts() throws {
@@ -235,6 +251,8 @@ final class HTTPIntegrationTests: XCTestCase {
             XCTAssertEqual(summary.timeout.count, 0)
         }
 
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        print("Running using URLSession")
         for waitSecond in [2, 4, 5, 6, 7, 9] {
             let urlSessionConfig = try HTTPPingClient.Configuration(url: endpoint, count: 3, useURLSession: true)
             let httpPing = HTTPPingClient(configuration: urlSessionConfig, networkLinkConfig: .fullyConnected)
@@ -249,6 +267,7 @@ final class HTTPIntegrationTests: XCTestCase {
             XCTAssertEqual(summary.duplicates.count, 0)
             XCTAssertEqual(summary.timeout.count, 0)
         }
+        #endif
     }
 
     func testCancelAfterTestFinishes() throws {
@@ -261,6 +280,8 @@ final class HTTPIntegrationTests: XCTestCase {
         XCTAssertEqual(summary.duplicates.count, 0)
         XCTAssertEqual(summary.timeout.count, 0)
 
+        #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+        print("Running using URLSession")
         let urlSessionConfig = try HTTPPingClient.Configuration(url: endpoint, count: 3, useURLSession: true)
         let urlSessionPing = HTTPPingClient(configuration: urlSessionConfig, networkLinkConfig: .fullyConnected)
         let urlSessionSummary = try urlSessionPing.start().wait()
@@ -269,6 +290,7 @@ final class HTTPIntegrationTests: XCTestCase {
         XCTAssertEqual(urlSessionSummary.details.isEmpty, false)
         XCTAssertEqual(urlSessionSummary.duplicates.count, 0)
         XCTAssertEqual(urlSessionSummary.timeout.count, 0)
+        #endif
     }
 }
 #endif

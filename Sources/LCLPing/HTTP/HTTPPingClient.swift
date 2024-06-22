@@ -152,6 +152,8 @@ extension HTTPPingClient {
         public var useServerTiming: Bool
 
         /// Indicate whether the HTTP Ping Client should use native URLSession implementation.
+        ///
+        /// - Warning: on Linux platform, this attribute is always false, as URLSession is not fully supported in swift-corelibs-foundation.
         public var useURLSession: Bool
 
         /// The host that HTTP Ping Client will connect to for the ping test.
@@ -229,6 +231,11 @@ extension HTTPPingClient {
                 }
                 return httpHeaders
             }()
+            
+            #if os(Linux)
+            // NOTE: URLSession is not fully supported in swift-corelibs-foundation
+            self.useURLSession = false
+            #endif
         }
 
         /// Initialize a HTTP Ping Client `Configuration`.
