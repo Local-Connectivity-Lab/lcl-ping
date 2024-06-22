@@ -46,7 +46,11 @@ public final class HTTPPingClient: Pingable {
         self.configuration = configuration
         self.resultPromise = self.eventLoopGroup.next().makePromise(of: PingSummary.self)
         if self.configuration.useURLSession {
+            #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
             self.pingClient = URLSessionClient(config: self.configuration, socketAddress: self.configuration.resolvedAddress, promise: self.resultPromise)
+            #else
+            preconditionFailure("URLSession is not supported on non-Apple platforms")
+            #endif
         } else {
             #if INTEGRATION_TEST
             self.pingClient = NIOHTTPClient(eventLoopGroup: self.eventLoopGroup, configuration: self.configuration, resolvedAddress: self.configuration.resolvedAddress, networkLinkConfig: self.networkLinkConfig, promise: self.resultPromise)
@@ -65,7 +69,11 @@ public final class HTTPPingClient: Pingable {
         self.resultPromise = self.eventLoopGroup.next().makePromise(of: PingSummary.self)
         self.networkLinkConfig = networkLinkConfig
         if self.configuration.useURLSession {
+            #if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
             self.pingClient = URLSessionClient(config: self.configuration, socketAddress: self.configuration.resolvedAddress, promise: self.resultPromise)
+            #else
+            preconditionFailure("URLSession is not supported on non-Apple platforms")
+            #endif
         } else {
             #if INTEGRATION_TEST
             self.pingClient = NIOHTTPClient(eventLoopGroup: self.eventLoopGroup, configuration: self.configuration, resolvedAddress: self.configuration.resolvedAddress, networkLinkConfig: self.networkLinkConfig, promise: self.resultPromise)
