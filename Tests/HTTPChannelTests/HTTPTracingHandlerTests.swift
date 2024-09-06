@@ -68,6 +68,7 @@ final class HTTPTracingHandlerTests: XCTestCase {
             XCTAssertEqual(request.method, HTTPMethod.GET)
             XCTAssertEqual(request.uri, config.url.uri)
             XCTAssertEqual(request.headers, config.httpHeaders)
+            promise.succeed(.ok(2, 0, 0))
         default:
             XCTFail("Should receive a head and end. But received head = \(String(describing: head)), end = \(String(describing: end))")
         }
