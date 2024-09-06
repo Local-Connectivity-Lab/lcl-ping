@@ -12,6 +12,7 @@
 
 import Foundation
 import NIOCore
+import Collections
 
 extension ICMPPingClient {
 
@@ -139,11 +140,11 @@ final class ICMPHandler: PingHandler {
     // sequence number to ICMP request
     private var seqToRequest: [Int: ICMPPingClient.ICMPHeader]
 
-    // sequence number to an optional ICMP response
-    private var seqToResponse: [Int: ICMPPingClient.ICMPHeader?]
+    // a bit set that contains the response sequence number seen so far
+    private var seen: BitSet
 
-    // a set that contains the response sequence number received by the handler
-    private var responseSeqNumSet: Set<Int>
+    // a bit set that contains the response sequence number received by the handler
+    private var hasResponses: BitSet
 
     // a list of `PingResponse`
     private var result: [PingResponse]
@@ -154,10 +155,10 @@ final class ICMPHandler: PingHandler {
     init(totalCount: Int, promise: EventLoopPromise<[PingResponse]>) {
         self.totalCount = totalCount
         self.seqToRequest = [:]
-        self.seqToResponse = [:]
-        self.responseSeqNumSet = Set()
         self.result = []
         self.icmpPingPromise = promise
+        self.seen = BitSet(reservingCapacity: self.totalCount)
+        self.hasResponses = BitSet(reservingCapacity: self.totalCount)
     }
 
     func handleRead(response: ICMPPingClient.ICMPHeader) {
@@ -176,17 +177,16 @@ final class ICMPHandler: PingHandler {
             return
         }
 
-        if self.responseSeqNumSet.contains(sequenceNum) {
-            let pingResponse: PingResponse = self.seqToResponse[sequenceNum] ==
-                                                nil ? .timeout(sequenceNum) : .duplicated(sequenceNum)
-            logger.debug("[\(#fileID)][\(#line)][\(#function)]:: response for #\(sequenceNum) is \(self.seqToResponse[sequenceNum] == nil ? "timeout" : "duplicate")")
+        if self.seen.contains(sequenceNum) {
+            let pingResponse: PingResponse = self.hasResponses.contains(sequenceNum) ? .duplicated(sequenceNum) : .timeout(sequenceNum)
+            logger.debug("[\(#fileID)][\(#line)][\(#function)]:: response for #\(sequenceNum) is \(self.hasResponses.contains(sequenceNum) ? "timeout" : "duplicate")")
             result.append(pingResponse)
             shouldCloseHandler()
             return
         }
 
-        self.seqToResponse[sequenceNum] = response
-        self.responseSeqNumSet.insert(sequenceNum)
+        self.hasResponses.insert(sequenceNum)
+        self.seen.insert(sequenceNum)
 
         switch (type, code) {
         case (ICMPPingClient.ICMPType.echoReply.rawValue, 0):
@@ -334,9 +334,9 @@ final class ICMPHandler: PingHandler {
     }
 
     func handleTimeout(sequenceNumber: Int) {
-        if !self.responseSeqNumSet.contains(sequenceNumber) {
+        if !self.seen.contains(sequenceNumber) {
             logger.debug("[\(#fileID)][\(#line)][\(#function)]: #\(sequenceNumber) timed out")
-            self.responseSeqNumSet.insert(sequenceNumber)
+            self.seen.insert(sequenceNumber)
             self.result.append(.timeout(sequenceNumber))
             shouldCloseHandler()
         }
@@ -353,12 +353,11 @@ final class ICMPHandler: PingHandler {
 
     func reset() {
         self.seqToRequest.removeAll()
-        self.seqToResponse.removeAll()
         self.result.removeAll()
     }
 
     func shouldCloseHandler(shouldForceClose: Bool = false) {
-        if self.responseSeqNumSet.count == self.totalCount || shouldForceClose {
+        if self.seen.count == self.totalCount || shouldForceClose {
             logger.debug("[\(#fileID)][\(#line)][\(#function)]: should close icmp handler")
             self.icmpPingPromise.succeed(self.result)
         }
