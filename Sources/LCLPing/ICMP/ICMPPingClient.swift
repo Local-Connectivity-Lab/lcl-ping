@@ -181,13 +181,13 @@ public final class ICMPPingClient: Pingable {
                         #if canImport(Darwin)
                         return channel.setOption(.ipOption(.ip_bound_if), value: CInt(device.interfaceIndex))
                         #elseif canImport(Glibc)
-                        return channel.setOption(.ipOption(.so_bindtodevice), value: CInt(device.interfaceIndex))
+                        return channel.setOption(.ipOption(.so_bindtodevice), value: device.interfaceIndex)
                         #endif
                     case .v6:
                         #if canImport(Darwin)
                         return channel.setOption(.ipv6Option(.ip_bound_if), value: CInt(device.interfaceIndex))
                         #elseif canImport(Glibc)
-                        return channel.setOption(.ipv6Option(.so_bindtodevice), value: CInt(device.interfaceIndex))
+                        return channel.setOption(.ipv6Option(.so_bindtodevice), value: device.interfaceIndex)
                         #endif
                     case .unixDomainSocket:
                         self.stateLock.withLock {
