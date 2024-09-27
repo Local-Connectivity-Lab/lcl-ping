@@ -52,6 +52,8 @@ public enum PingError: Error {
     case icmpPointerIndicatesError
     case icmpMissingARequiredOption
     case icmpBadLength
+    case icmpDestinationNotMulticast
+    case icmpUnixDomainSocketForMulticast
 
     case httpMissingHost
     case httpMissingSchema
@@ -165,6 +167,10 @@ extension PingError: CustomStringConvertible {
             return "Missing HTTP response."
         case .httpInvalidURLSessionTask(let id):
             return "URLSession Task \(id) is invalid."
+        case .icmpDestinationNotMulticast:
+            return "Destination address is not a multicast address."
+        case .icmpUnixDomainSocketForMulticast:
+            return "Cannot bind a unix domain soket as a multicast socket."
         }
     }
 
