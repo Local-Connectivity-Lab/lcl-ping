@@ -200,27 +200,23 @@ final class NIOHTTPClient: Pingable {
                 }
                 
                 if let device = self.configuration.device {
+                    #if canImport(Darwin)
                     switch device.address {
                     case .v4:
-                        #if canImport(Darwin)
                         return channel.setOption(.ipOption(.ip_bound_if), value: CInt(device.interfaceIndex))
-                        #elseif canImport(Glibc)
-                        return channel.setOption(.ipOption(.so_bindtodevice), value: device.interfaceIndex)
-                        #endif
                     case .v6:
-                        #if canImport(Darwin)
-                        return channel.setOption(.ipv6Option(.ip_bound_if), value: CInt(device.interfaceIndex))
-                        #elseif canImport(Glibc)
-                        return channel.setOption(.ipv6Option(.so_bindtodevice), value: device.interfaceIndex)
-                        #endif
+                        return channel.setOption(.ipv6Option(.ipv6_bound_if), value: CInt(device.interfaceIndex))
                     case .unixDomainSocket:
                         self.stateLock.withLock {
                             self.state = .error
                         }
-                        return channel.eventLoop.makeFailedFuture(PingError.httpBindToUnixDomainSocket)
+                        return channel.eventLoop.makeFailedFuture(PingError.icmpBindToUnixDomainSocket)
                     default:
                         ()
                     }
+                    #elseif canImport(Glibc)
+                    return channel.setOption(.socketOption(.so_bindtodevice), value: device.interfaceIndex)
+                    #endif
                 }
 
                 return channel.eventLoop.makeSucceededVoidFuture()

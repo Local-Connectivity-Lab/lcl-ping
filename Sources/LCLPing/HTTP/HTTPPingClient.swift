@@ -259,6 +259,9 @@ extension HTTPPingClient {
                         continue
                     }
                 }
+                if self.device != nil {
+                    break
+                }
             }
         }
 
