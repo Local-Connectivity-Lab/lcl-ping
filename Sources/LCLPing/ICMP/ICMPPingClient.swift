@@ -193,7 +193,7 @@ public final class ICMPPingClient: Pingable {
                         self.stateLock.withLock {
                             self.state = .error
                         }
-                        return channel.eventLoop.makeFailedFuture(PingError.icmpUnixDomainSocketForMulticast)
+                        return channel.eventLoop.makeFailedFuture(PingError.icmpBindToUnixDomainSocket)
                     default:
                         ()
                     }
@@ -238,7 +238,7 @@ extension ICMPPingClient {
         /// The resolved socket address
         public let resolvedAddress: SocketAddress
         
-        /// The multicast outgoing device associated with the given interface name
+        /// The outgoing device associated with the given interface name
         public var device: NIONetworkDevice?
 
         public init(endpoint: EndpointTarget,
@@ -278,19 +278,5 @@ extension ICMPPingClient {
     public enum EndpointTarget {
         case ipv4(String, Int?)
         case ipv6(String, Int?)
-    }
-}
-
-extension NIOBSDSocket.Option {
-    #if canImport(Darwin)
-    public static let ip_bound_if: NIOBSDSocket.Option = Self(rawValue: IP_BOUND_IF)
-    #elseif canImport(Glibc)
-    public static let so_bindtodevice = Self(rawValue: SO_BINDTODEVICE)
-    #endif
-}
-
-extension ChannelOption where Self == ChannelOptions.Types.SocketOption {
-    public static func ipv6Option(_ name: NIOBSDSocket.Option) -> Self {
-        .init(level: .ipv6, name: name)
     }
 }
