@@ -242,7 +242,7 @@ extension ICMPPingClient {
                     interval: TimeAmount = .seconds(1),
                     timeToLive: UInt8 = 64,
                     timeout: TimeAmount = .seconds(1),
-                    outgoingIntefaceName: String? = nil
+                    deviceName: String? = nil
         ) throws {
             self.endpoint = endpoint
             self.count = count
@@ -257,7 +257,7 @@ extension ICMPPingClient {
             }
 
             for device in try System.enumerateDevices() {
-                if device.name == outgoingIntefaceName, let address = device.address {
+                if device.name == deviceName, let address = device.address {
                     switch (address.protocol, self.endpoint) {
                     case (.inet, .ipv4), (.inet6, .ipv6):
                         logger.info("device selcted is \(device)")

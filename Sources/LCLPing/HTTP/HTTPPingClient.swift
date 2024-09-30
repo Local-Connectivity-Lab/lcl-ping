@@ -193,7 +193,7 @@ extension HTTPPingClient {
         ///     - useServerTimimg: Indicate whether the HTTP Ping Client should take `ServerTiming` attribute
         /// from the reponse header.
         ///     - useURLSession: Indicate whether the HTTP Ping Client should use native URLSession implementation.
-        ///     - outgoingInterfaceName: the interface name for which the outbound data will be sent to.
+        ///     - deviceName: the interface name for which the outbound data will be sent to.
         ///
         ///     - Throws:
         ///         - httpMissingHost: if URL does not include any host information.
@@ -206,7 +206,7 @@ extension HTTPPingClient {
                     headers: [String: String] = Configuration.defaultHeaders,
                     useServerTiming: Bool = false,
                     useURLSession: Bool = false,
-                    outgoingInterfaceName: String? = nil) throws {
+                    deviceName: String? = nil) throws {
             self.url = url
             self.count = count
             self.readTimeout = readTimeout
@@ -251,7 +251,7 @@ extension HTTPPingClient {
             #endif
             
             for device in try System.enumerateDevices() {
-                if device.name == outgoingInterfaceName, let address = device.address {
+                if device.name == deviceName, let address = device.address {
                     switch (address.protocol, self.resolvedAddress.protocol) {
                     case (.inet, .inet), (.inet6, .inet6):
                         self.device = device
@@ -276,7 +276,7 @@ extension HTTPPingClient {
         ///     - useServerTimimg: Indicate whether the HTTP Ping Client should take `ServerTiming` attribute
         /// from the reponse header.
         ///     - useURLSession: Indicate whether the HTTP Ping Client should use native URLSession implementation.
-        ///     - outgoingInterfaceName: the interface name for which the outbound data will be sent to
+        ///     - deviceName: the interface name for which the outbound data will be sent to
         ///
         ///     - Throws:
         ///         - httpMissingHost: if URL does not include any host information.
@@ -289,7 +289,7 @@ extension HTTPPingClient {
                     headers: [String: String] = Configuration.defaultHeaders,
                     useServerTiming: Bool = false,
                     useURLSession: Bool = false,
-                    outgoingIntefaceName: String? = nil) throws {
+                    deviceName: String? = nil) throws {
             guard let urlObj = URL(string: url) else {
                 throw PingError.invalidURL(url)
             }
@@ -301,7 +301,7 @@ extension HTTPPingClient {
                           headers: headers,
                           useServerTiming: useServerTiming,
                           useURLSession: useURLSession,
-                          outgoingInterfaceName: outgoingIntefaceName)
+                          deviceName: deviceName)
         }
 
         /// Initialize a HTTP Ping Client `Configuration`.
