@@ -78,23 +78,31 @@ public final class ICMPPingClient: Pingable {
                             }
                         }
                     }
-
-                    for cnt in 0..<self.configuration.count {
+                    
+                    let sendPromise = channel.eventLoop.makePromise(of: Void.self)
+                    sendPromise.futureResult.cascadeFailure(to: self.promise)
+                    
+                    func send(_ cnt: Int) {
+                        if cnt == self.configuration.count {
+                            sendPromise.succeed()
+                            return
+                        }
+                        let el = self.eventLoopGroup.next()
+                        let p = el.makePromise(of: Void.self)
                         logger.debug("Scheduled #\(cnt) request")
                         channel.eventLoop.scheduleTask(in: cnt * self.configuration.interval) {
-                            channel.write(
-                                ICMPPingClient.Request(
-                                    sequenceNum: UInt16(cnt),
-                                    identifier: self.identifier
-                                ),
-                                promise: nil
-                            )
-                        }
+                            channel.writeAndFlush(ICMPPingClient.Request(sequenceNum: UInt16(cnt), identifier: self.identifier), promise: p)
+                        }.futureResult.hop(to: el).cascadeFailure(to: sendPromise)
+                        
+                        p.futureResult.cascadeFailure(to: sendPromise)
+                        send(cnt + 1)
                     }
-
-                    return self.promise.futureResult.flatMap { pingResponse in
+                    
+                    send(0)
+                    
+                    return sendPromise.futureResult.and(self.promise.futureResult).flatMap { (_, pingResponse) in
                         let summary = pingResponse.summarize(host: self.configuration.resolvedAddress)
-                        self.stateLock.withLockVoid {
+                        self.stateLock.withLock {
                             self.state = .finished
                         }
                         return channel.eventLoop.makeSucceededFuture(summary)
@@ -166,6 +174,27 @@ public final class ICMPPingClient: Pingable {
                     }
                     return channel.eventLoop.makeFailedFuture(error)
                 }
+                
+                if let device = self.configuration.device {
+                    #if canImport(Darwin)
+                    switch device.address {
+                    case .v4:
+                        return channel.setOption(.ipOption(.ip_bound_if), value: CInt(device.interfaceIndex))
+                    case .v6:
+                        return channel.setOption(.ipv6Option(.ipv6_bound_if), value: CInt(device.interfaceIndex))
+                    case .unixDomainSocket:
+                        self.stateLock.withLock {
+                            self.state = .error
+                        }
+                        return channel.eventLoop.makeFailedFuture(PingError.icmpBindToUnixDomainSocket)
+                    default:
+                        ()
+                    }
+                    #elseif canImport(Glibc)
+                    return (channel as! SocketOptionProvider).setBindToDevice(device.name)
+                    #endif
+                }
+                
                 return channel.eventLoop.makeSucceededVoidFuture()
             }
     }
@@ -202,13 +231,18 @@ extension ICMPPingClient {
         /// Time, in second, to wait for a reply for each packet sent. Default is 1s.
         public var timeout: TimeAmount
 
+        /// The resolved socket address
         public let resolvedAddress: SocketAddress
+        
+        /// The outgoing device associated with the given interface name
+        public var device: NIONetworkDevice?
 
         public init(endpoint: EndpointTarget,
                     count: Int = 10,
                     interval: TimeAmount = .seconds(1),
                     timeToLive: UInt8 = 64,
-                    timeout: TimeAmount = .seconds(1)
+                    timeout: TimeAmount = .seconds(1),
+                    deviceName: String? = nil
         ) throws {
             self.endpoint = endpoint
             self.count = count
@@ -220,6 +254,21 @@ extension ICMPPingClient {
                 self.resolvedAddress = try SocketAddress.makeAddressResolvingHost(addr, port: port ?? 0)
             case .ipv6(let addr, let port):
                 self.resolvedAddress = try SocketAddress.makeAddressResolvingHost(addr, port: port ?? 0)
+            }
+
+            for device in try System.enumerateDevices() {
+                if device.name == deviceName, let address = device.address {
+                    switch (address.protocol, self.endpoint) {
+                    case (.inet, .ipv4), (.inet6, .ipv6):
+                        logger.info("device selcted is \(device)")
+                        self.device = device
+                    default:
+                        continue
+                    }
+                }
+                if self.device != nil {
+                    break
+                }
             }
         }
     }

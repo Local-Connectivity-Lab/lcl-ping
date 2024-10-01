@@ -52,6 +52,8 @@ public enum PingError: Error {
     case icmpPointerIndicatesError
     case icmpMissingARequiredOption
     case icmpBadLength
+    case icmpDestinationNotMulticast
+    case icmpBindToUnixDomainSocket
 
     case httpMissingHost
     case httpMissingSchema
@@ -59,6 +61,7 @@ public enum PingError: Error {
     case httpInvalidHandlerState
     case httpMissingResponse
     case httpInvalidURLSessionTask(Int)
+    case httpBindToUnixDomainSocket
 
     case invalidHexFormat
 
@@ -165,6 +168,12 @@ extension PingError: CustomStringConvertible {
             return "Missing HTTP response."
         case .httpInvalidURLSessionTask(let id):
             return "URLSession Task \(id) is invalid."
+        case .icmpDestinationNotMulticast:
+            return "Destination address is not a multicast address."
+        case .icmpBindToUnixDomainSocket:
+            return "Cannot bind to a unix domain socket device."
+        case .httpBindToUnixDomainSocket:
+            return "Cannot bind to a unix domain socket device."
         }
     }
 

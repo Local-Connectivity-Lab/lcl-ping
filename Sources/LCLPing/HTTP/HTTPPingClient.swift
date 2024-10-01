@@ -178,6 +178,9 @@ extension HTTPPingClient {
 
         /// The DNS-resolved address according to the URL endpoint
         public let resolvedAddress: SocketAddress
+        
+        /// The outgoing device associated with the given interface name
+        public var device: NIONetworkDevice?
 
         /// Initialize a HTTP Ping Client `Configuration`.
         ///
@@ -190,6 +193,7 @@ extension HTTPPingClient {
         ///     - useServerTimimg: Indicate whether the HTTP Ping Client should take `ServerTiming` attribute
         /// from the reponse header.
         ///     - useURLSession: Indicate whether the HTTP Ping Client should use native URLSession implementation.
+        ///     - deviceName: the interface name for which the outbound data will be sent to.
         ///
         ///     - Throws:
         ///         - httpMissingHost: if URL does not include any host information.
@@ -201,7 +205,8 @@ extension HTTPPingClient {
                     connectionTimeout: TimeAmount = .seconds(5),
                     headers: [String: String] = Configuration.defaultHeaders,
                     useServerTiming: Bool = false,
-                    useURLSession: Bool = false) throws {
+                    useURLSession: Bool = false,
+                    deviceName: String? = nil) throws {
             self.url = url
             self.count = count
             self.readTimeout = readTimeout
@@ -244,6 +249,20 @@ extension HTTPPingClient {
             // NOTE: URLSession is not fully supported in swift-corelibs-foundation
             self.useURLSession = false
             #endif
+            
+            for device in try System.enumerateDevices() {
+                if device.name == deviceName, let address = device.address {
+                    switch (address.protocol, self.resolvedAddress.protocol) {
+                    case (.inet, .inet), (.inet6, .inet6):
+                        self.device = device
+                    default:
+                        continue
+                    }
+                }
+                if self.device != nil {
+                    break
+                }
+            }
         }
 
         /// Initialize a HTTP Ping Client `Configuration`.
@@ -257,6 +276,7 @@ extension HTTPPingClient {
         ///     - useServerTimimg: Indicate whether the HTTP Ping Client should take `ServerTiming` attribute
         /// from the reponse header.
         ///     - useURLSession: Indicate whether the HTTP Ping Client should use native URLSession implementation.
+        ///     - deviceName: the interface name for which the outbound data will be sent to
         ///
         ///     - Throws:
         ///         - httpMissingHost: if URL does not include any host information.
@@ -268,7 +288,8 @@ extension HTTPPingClient {
                     connectionTimeout: TimeAmount = .seconds(5),
                     headers: [String: String] = Configuration.defaultHeaders,
                     useServerTiming: Bool = false,
-                    useURLSession: Bool = false) throws {
+                    useURLSession: Bool = false,
+                    deviceName: String? = nil) throws {
             guard let urlObj = URL(string: url) else {
                 throw PingError.invalidURL(url)
             }
@@ -279,8 +300,8 @@ extension HTTPPingClient {
                           connectionTimeout: connectionTimeout,
                           headers: headers,
                           useServerTiming: useServerTiming,
-                          useURLSession: useURLSession
-                        )
+                          useURLSession: useURLSession,
+                          deviceName: deviceName)
         }
 
         /// Initialize a HTTP Ping Client `Configuration`.
