@@ -180,7 +180,7 @@ extension HTTPPingClient {
         public let resolvedAddress: SocketAddress
         
         /// The outgoing device associated with the given interface name
-        public var device: NIONetworkDevice?
+        public private(set) var device: NIONetworkDevice?
 
         /// Initialize a HTTP Ping Client `Configuration`.
         ///

@@ -214,7 +214,7 @@ final class NIOHTTPClient: Pingable {
                     default:
                         ()
                     }
-                    #elseif canImport(Glibc)
+                    #elseif canImport(Glibc) || canImport(Musl)
                     return (channel as! SocketOptionProvider).setBindToDevice(device.name)
                     #endif
                 }
