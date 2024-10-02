@@ -190,7 +190,7 @@ public final class ICMPPingClient: Pingable {
                     default:
                         ()
                     }
-                    #elseif canImport(Glibc)
+                    #elseif canImport(Glibc) || canImport(Musl)
                     return (channel as! SocketOptionProvider).setBindToDevice(device.name)
                     #endif
                 }
@@ -235,7 +235,7 @@ extension ICMPPingClient {
         public let resolvedAddress: SocketAddress
         
         /// The outgoing device associated with the given interface name
-        public var device: NIONetworkDevice?
+        public private(set) var device: NIONetworkDevice?
 
         public init(endpoint: EndpointTarget,
                     count: Int = 10,

@@ -12,18 +12,26 @@
 
 import Foundation
 import NIOCore
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#endif
 
 extension NIOBSDSocket.Option {
     #if canImport(Darwin)
     public static let ip_bound_if: NIOBSDSocket.Option = Self(rawValue: IP_BOUND_IF)
     public static let ipv6_bound_if: NIOBSDSocket.Option = Self(rawValue: IPV6_BOUND_IF)
-    #elseif canImport(Glibc)
+    #elseif canImport(Glibc) || canImport(Musl)
     public static let so_bindtodevice = Self(rawValue: SO_BINDTODEVICE)
     #endif
 }
 
 extension SocketOptionProvider {
-    #if canImport(Glibc)
+    #if canImport(Glibc) || canImport(Musl)
+    
     /// Sets the socket option SO_BINDTODEVICE to `value`.
     ///
     /// - parameters:
