@@ -13,7 +13,8 @@
 import Foundation
 
 /// Type of reachability test that `LCLPing` supports
-public enum PingType {
+public enum PingType: String, CaseIterable, Identifiable {
+    public var id: Self { self }
     /// Perform reachability ping test through the ICMP protocol.
     case icmp
 
